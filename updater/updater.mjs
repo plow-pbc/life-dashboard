@@ -35,8 +35,16 @@ const SHARED = ['.env', 'data', 'banners'];
 
 const realExec = (argv, opts = {}) =>
   new Promise((resolve) => {
-    execFileCb(argv[0], argv.slice(1), { cwd: opts.cwd }, (err, stdout) =>
-      resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout: String(stdout ?? '') }),
+    execFileCb(
+      argv[0],
+      argv.slice(1),
+      { cwd: opts.cwd, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) =>
+        resolve({
+          code: err ? (typeof err.code === 'number' ? err.code : 1) : 0,
+          stdout: String(stdout ?? ''),
+          stderr: String(stderr ?? ''),
+        }),
     );
   });
 
@@ -44,10 +52,16 @@ const realSpawn = (argv, opts = {}) => {
   const child = spawnCb(argv[0], argv.slice(1), {
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
-  return { kill: () => child.kill() };
+  let stderr = '';
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  return { kill: () => child.kill(), stderr: () => stderr };
 };
+
+// Failures land in last-result.json as the agent's only remote diagnostic, so
+// carry the tail of whatever the failing step said.
+const tail = (s) => (s ?? '').trim().slice(-2000);
 
 async function healthy(doFetch, base, paths, sleep, tries) {
   for (let i = 0; i < tries; i++) {
@@ -136,22 +150,21 @@ export async function run(deps = {}) {
   await rm(releaseDir, { recursive: true, force: true }); // leftover from a killed run
   await mkdir(releaseDir, { recursive: true });
   const origin = await exec(['git', 'config', '--get', 'remote.origin.url'], { cwd: currentDir });
-  for (const argv of [
-    ['git', 'clone', origin.stdout.trim(), releaseDir],
-    ['git', 'checkout', sha],
-    ['npm', 'ci'],
-    ['npm', 'run', 'build'],
-    ['npm', 'test'],
-  ]) {
-    const res = await exec(argv, { cwd: argv[1] === 'clone' ? undefined : releaseDir });
-    if (res.code !== 0) return fail('build-failed', argv.join(' '));
-  }
+  const cloned = await exec(['git', 'clone', origin.stdout.trim(), releaseDir]);
+  if (cloned.code !== 0) return fail('build-failed', `git clone: ${tail(cloned.stderr)}`);
 
   // Shared household state (secrets, messages, photos) lives outside the
-  // release dirs and is symlinked into each one.
+  // release dirs and is symlinked into each one — before the build/test steps,
+  // so nothing downstream can depend on it being absent.
   for (const name of SHARED) {
     const source = join(home, 'ld-data', name);
     if (existsSync(source)) await symlink(source, join(releaseDir, name));
+  }
+
+  for (const argv of [['git', 'checkout', sha], ['npm', 'ci'], ['npm', 'run', 'build'], ['npm', 'test']]) {
+    const res = await exec(argv, { cwd: releaseDir });
+    if (res.code !== 0)
+      return fail('build-failed', `${argv.join(' ')}: ${tail(res.stderr || res.stdout)}`);
   }
 
   // 4. Boot the built release on the probe port and health-check it.
@@ -161,7 +174,7 @@ export async function run(deps = {}) {
   });
   const probeOk = await healthy(doFetch, `http://127.0.0.1:${PROBE_PORT}`, HEALTH_PATHS, sleep, 20);
   probe.kill();
-  if (!probeOk) return fail('probe-failed');
+  if (!probeOk) return fail('probe-failed', tail(probe.stderr?.()));
 
   // 5. Stamp, flip, restart, re-check live.
   await writeFile(

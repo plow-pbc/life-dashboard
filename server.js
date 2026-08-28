@@ -46,12 +46,14 @@ if (!pinch) {
 }
 
 // Deploy stamp dropped into the release dir by the updater at flip time.
-// A dev tree has no stamp; /api/version then serves nulls.
+// A dev tree has no stamp; /api/version then serves nulls. Only ENOENT means
+// "no stamp" — a present-but-unreadable/corrupt stamp fails loudly (same
+// convention as listBanners below) instead of masquerading as a dev tree.
 let version = null;
 try {
   version = JSON.parse(await readFile('./version.json', 'utf8'));
-} catch {
-  /* dev tree: no stamp */
+} catch (err) {
+  if (err.code !== 'ENOENT') throw err;
 }
 
 const app = createApp({

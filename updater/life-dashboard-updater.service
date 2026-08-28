@@ -7,3 +7,6 @@ Type=oneshot
 # updater itself: the new copy only takes over after its release passes the
 # health checks and the symlink flips. Bootstrap is documented in README.md.
 ExecStart=/usr/bin/node %h/ld-current/updater/updater.mjs
+# A full clone + npm ci + build + test easily exceeds the 90s oneshot default
+# on a Pi; a mid-build SIGTERM would bypass the rollback/pin logic.
+TimeoutStartSec=15min

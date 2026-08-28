@@ -18,10 +18,11 @@ and the household repo may accumulate household-specific tweaks):
 
 ```sh
 gh repo create <you>/life-dashboard-<household> --private
-git clone git@github.com:<you>/life-dashboard-<household>.git
+git clone git@github.com:plow-pbc/life-dashboard.git life-dashboard-<household>
 cd life-dashboard-<household>
-git remote add template git@github.com:plow-pbc/life-dashboard.git
-git fetch template && git merge template/main && git push origin main
+git remote rename origin template
+git remote add origin git@github.com:<you>/life-dashboard-<household>.git
+git push -u origin main
 ```
 
 To pick up template improvements later: `git fetch template && git merge
@@ -30,8 +31,10 @@ template/main && git push` (the updater deploys the merge like any other push).
 ## Bring-up on a fresh Pi
 
 1. Create the household repo (above) and give the Pi read access to it.
-2. Seed the updater (clone to `~/ld-releases/bootstrap`, initial `~/ld-current`
-   symlink, `~/ld-data/`, enable the timer) — exact commands in
+2. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
+   `--user` unit that would otherwise die with the login session — then clone
+   to `~/ld-releases/bootstrap`, initial `~/ld-current` symlink, `~/ld-data/`,
+   deploy-key git auth, enable the timer) — exact commands in
    `updater/README.md` § Bootstrap.
 3. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
@@ -42,7 +45,6 @@ template/main && git push` (the updater deploys the merge like any other push).
    cp life-dashboard-viewer.service life-kiosk-viewer.service ~/.config/systemd/user/
    systemctl --user daemon-reload
    systemctl --user enable --now life-dashboard-viewer life-kiosk-viewer
-   loginctl enable-linger $USER   # user units run without a login session
    ```
 
 ## The agent's deploy contract

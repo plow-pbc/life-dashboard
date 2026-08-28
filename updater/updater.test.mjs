@@ -28,7 +28,7 @@ const makeExec = (log, { remoteSha, failing = null } = {}) =>
   async (argv, opts = {}) => {
     const line = argv.join(' ');
     log.push(line);
-    if (failing && line.startsWith(failing)) return { code: 1, stdout: '' };
+    if (failing && line.startsWith(failing)) return { code: 1, stdout: '', stderr: 'boom: step failed' };
     if (line === 'git rev-parse origin/main') return { code: 0, stdout: `${remoteSha}\n` };
     if (line === 'git config --get remote.origin.url')
       return { code: 0, stdout: 'git@github.com:example/household.git\n' };
@@ -102,6 +102,24 @@ describe('updater', () => {
     expect(typeof stamp.deployedAt).toBe('string');
     const result = JSON.parse(await readFile(join(stateDir, 'last-result.json'), 'utf8'));
     expect(result).toMatchObject({ action: 'deployed', sha: 'newsha1', ok: true });
+  });
+
+  // Build/test and probe failures share the arrange/act shape: deploy is
+  // refused, the SHA is pinned, ld-current never moves, and last-result
+  // carries the failing step's output for remote diagnosis.
+  it.each([
+    ['npm test fails', { remoteSha: 'newsha1', failing: 'npm test' }, 'build-failed'],
+    ['probe health check fails', { remoteSha: 'newsha1', net: { liveSha: null, probeOk: false } }, 'probe-failed'],
+  ])('pins the SHA without flipping when %s', async (_name, opts, action) => {
+    const log = [];
+    const code = await run(deps(log, opts));
+    expect(code).toBe(1);
+    expect(await readlink(current)).toBe(join(releases, 'oldsha0'));
+    expect(await readFile(join(stateDir, 'bad-sha'), 'utf8')).toContain('newsha1');
+    expect(log).not.toContain('systemctl --user restart life-dashboard-viewer');
+    const result = JSON.parse(await readFile(join(stateDir, 'last-result.json'), 'utf8'));
+    expect(result).toMatchObject({ action, sha: 'newsha1', ok: false });
+    if (action === 'build-failed') expect(result.detail).toContain('boom: step failed');
   });
 
   it('rolls back and pins the SHA when post-flip health check fails', async () => {

@@ -37,12 +37,21 @@ updater — the new copy only takes over after its release passes the health
 checks. That needs one manual seed:
 
 ```sh
+loginctl enable-linger $USER   # FIRST: without lingering, --user units silently stop with the login session
 git clone git@github.com:<org>/<household-repo>.git ~/ld-releases/bootstrap
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
 cp updater/life-dashboard-updater.* ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now life-dashboard-updater.timer
+```
+
+Git auth: the timer's fetches run under systemd with no ssh-agent, so give the
+Pi a passphrase-less read-only deploy key and pin it **globally** (fresh
+release clones don't inherit repo-local config):
+
+```sh
+git config --global core.sshCommand 'ssh -i ~/.ssh/ld_deploy -o IdentitiesOnly=yes'
 ```
 
 The first timer run replaces `bootstrap` with a real `<sha>` release.
