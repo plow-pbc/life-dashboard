@@ -22,10 +22,10 @@ private clone-push works too, at the price of a read credential for the Pi:
 
 ```sh
 gh repo create <you>/life-dashboard-<household> --public
-git clone git@github.com:plow-pbc/life-dashboard.git life-dashboard-<household>
+git clone https://github.com/plow-pbc/life-dashboard.git life-dashboard-<household>
 cd life-dashboard-<household>
 git remote rename origin template
-git remote add origin git@github.com:<you>/life-dashboard-<household>.git
+git remote add origin https://github.com/<you>/life-dashboard-<household>.git
 git push -u origin main
 ```
 
