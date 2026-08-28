@@ -1,0 +1,23 @@
+[Unit]
+Description=Life Dashboard Viewer Kiosk Mode
+After=life-dashboard-viewer.service
+Wants=life-dashboard-viewer.service
+
+[Service]
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=%h/.Xauthority
+Type=simple
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/bin/rm -f %h/.config/chromium/Singleton*
+# --touch-events=enabled: required for touchscreen scrolling on the Pi kiosk display.
+ExecStart=/usr/bin/chromium --kiosk --touch-events=enabled --noerrdialogs --disable-infobars --no-first-run --password-store=basic --check-for-update-interval=31536000 http://127.0.0.1:5174
+Restart=always
+RestartSec=10
+# Hourly chromium recycle so any manual navigation away from the kiosk URL
+# (someone touched the screen, plugged in a keyboard, etc.) resets within an
+# hour. systemd terminates the service when RuntimeMaxSec elapses; Restart=always
+# brings it back. Cost is a ~5s blank screen each hour.
+RuntimeMaxSec=1h
+
+[Install]
+WantedBy=default.target

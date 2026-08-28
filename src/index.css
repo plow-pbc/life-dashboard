@@ -1,0 +1,561 @@
+/* =====================================================================
+   WARM — the single baked-in theme, trimmed from Mary's live stylesheet
+   (life-dashboard). Her 3-theme tokenized system reduced to the warm
+   values folded into :root; only the rules this viewer renders are kept.
+   No theme switcher.
+   ===================================================================== */
+
+:root {
+  /* ---- fonts (bundled via @fontsource, imported in main.tsx) ---- */
+  --ff-display: 'Instrument Serif', serif; /* big figures */
+  --ff-body: 'DM Sans', system-ui, sans-serif; /* running copy */
+  --ff-mono: 'DM Mono', monospace; /* eyebrows / captions / ticks */
+
+  /* ---- warm palette ---- */
+  --chalk: #fafaf7;
+  --paper: #fffefb;
+  --ink: #01000a;
+  --muted: #6b6b6b;
+  --faint: #9a978f;
+  --hair: #e7e3da;
+
+  /* deepened category inks (eyebrow/accent text) — the only accent tokens the
+     kept components consume; the base palette swatches were widget/legend-only */
+  --cornflower-ink: #3470c5;
+  --seaglass-ink: #5f6e60;
+  --clay-ink: #8a4a30;
+  --lavender-ink: #8a5cb8;
+
+  /* semantic "live" red — a shared theme token producer widgets reference
+     (e.g. the sports live dot), not a palette accent */
+  --live-red: #e5484d;
+
+  /* ---- unified type tokens ---- */
+  --t-body: 28px;
+  --t-card: 22px; /* message-card body: smaller than --t-body so a full producer message fits unclamped
+                     (producers cap rendered-card text — see the SKILL.md bundles under
+                     seed-life-dashboard-agent ref/team-skills/) */
+  --t-eyebrow: 18px;
+  --t-location: 15px;
+
+  /* ---- caption token form ---- */
+  --cap-size: 13px;
+  --cap-weight: 500;
+  --cap-tracking: 0.12em;
+
+  /* ---- layout ---- */
+  --gap: 16px;
+  --pad: 26px;
+
+  /* ---- warm card treatment ---- */
+  --card-bg: var(--paper);
+  --card-border: 1px solid rgba(0, 0, 0, 0.05);
+  --card-radius: 24px;
+  --card-shadow: 0 6px 18px rgba(120, 82, 46, 0.06), 0 1px 2px rgba(120, 82, 46, 0.05);
+  --photo-bg:
+    radial-gradient(ellipse at 30% 45%, rgba(214, 163, 248, 0.45), transparent 55%),
+    radial-gradient(ellipse at 70% 65%, rgba(116, 167, 246, 0.4), transparent 55%),
+    linear-gradient(180deg, #efe7d8 0%, #d8c4a8 100%);
+}
+
+/* ---- category accents (per-card eyebrow tint) ---- */
+.c-cornflower {
+  --accent-ink: var(--cornflower-ink);
+}
+.c-seaglass {
+  --accent-ink: var(--seaglass-ink);
+}
+.c-clay {
+  --accent-ink: var(--clay-ink);
+}
+.c-lavender {
+  --accent-ink: var(--lavender-ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--chalk);
+  /* TOUCH KIOSK HARDENING. This is a read-only display — nothing is ever selected.
+     user-select inherits, so this disables selection everywhere; tap-highlight is
+     killed so taps don't flash; overscroll:none stops page bounce/pull-to-refresh. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Part of the same hardening: -webkit-user-drag does NOT inherit, so unlike
+   user-select above it has to be set on the draggable elements themselves.
+   Scoped to img rather than enumerated per photo — enumerating leaves the next
+   one uncovered for exactly the reason the recipe photo was.
+
+   Blink/WebKit only, which covers the kiosk (Chromium). Banner.tsx also carries
+   the standard draggable={false}; in a non-Blink dev browser that one image is
+   the only one guarded. Not worth a second mechanism for a non-target engine. */
+img {
+  -webkit-user-drag: none;
+}
+
+/*
+ * Portrait kiosk rotation. The signal is landscape (e.g. 1920×1080) but the
+ * monitor is mounted in portrait, so we rotate the body to compensate. The
+ * body lays out in portrait dimensions (width: 100vh, height: 100vw) and
+ * then rotates 90° CCW around its top-left, translating down so it lands
+ * inside the landscape viewport.
+ *
+ * If the monitor is rotated the other way (90° CW physically), flip to
+ * `rotate(90deg)` and `translate(100vw, 0)`.
+ */
+body {
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  transform-origin: top left;
+  transform: translate(0, 100vh) rotate(-90deg);
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--chalk);
+  color: var(--ink);
+  font-family: var(--ff-body);
+  font-size: var(--t-body);
+  line-height: 1.3;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The body's rotation matches the physical monitor mount, so CSS-portrait
+ * coordinates map 1:1 to what the user sees. Structural layout is the seed's
+ * three-row portrait grid (alert+message+weather up top, calendar middle,
+ * digest bottom); visual treatment is Mary's warm theme. inset:0 makes .app
+ * fill the body (a plain height:100% can drop to content-sized inside the
+ * rotated/absolute body). */
+.app {
+  position: absolute;
+  inset: 0;
+  padding: var(--pad);
+  display: grid;
+  /* 3 equal columns. The photo spans 2 and weather takes the third on the top
+     row; alert / affirmation / sports sit equal-width on the next row; calendar
+     fills the slack; digest is a full-width row at 2× the card-row height. The
+     two card rows share one height (--row-h) so they read as a consistent band. */
+  --row-h: 15rem;
+  /* Height of the recipe strip; see .pinch-tile for why it exists and what it
+     costs. Deliberately short — a wide band, not another full-height card. */
+  --cook-h: 8rem;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
+  grid-template-areas:
+    'card1    card2    card3'
+    'card5    card5    card5'
+    'calendar calendar calendar'
+    'card4    card4    card4';
+  gap: var(--gap);
+}
+
+/* Banners present → photo (2 tiles wide) shares the top row with weather; alert
+ * / affirmation / sports sit equal-width on the next row (same height); calendar
+ * fills the slack and digest is a full-width row at 2× the card-row height.
+ * Deploys without a ./banners/ folder render <Banner/> as null, so this override
+ * doesn't match and .app stays the bannerless layout. */
+.app:has(.banner) {
+  grid-template-areas:
+    'banner   banner   card3'
+    'card1    card2    card5'
+    'calendar calendar calendar'
+    'card4    card4    card4';
+}
+
+/* Allocates the strip's row only when the tile is really on screen — the same
+ * bargain .app:has(.banner) strikes for the photo. See .pinch-tile for when
+ * that is and why. */
+.app:has(.pinch-tile) {
+  grid-template-rows: var(--row-h) var(--row-h) var(--cook-h) 1fr calc(var(--row-h) * 2);
+  grid-template-areas:
+    'card1    card2    card3'
+    'card5    card5    card5'
+    'cook     cook     cook'
+    'calendar calendar calendar'
+    'card4    card4    card4';
+}
+
+/* Rows come from .app:has(.pinch-tile) above — only the areas differ. */
+.app:has(.banner):has(.pinch-tile) {
+  grid-template-areas:
+    'banner   banner   card3'
+    'card1    card2    card5'
+    'cook     cook     cook'
+    'calendar calendar calendar'
+    'card4    card4    card4';
+}
+
+/* ---- shared type ---- */
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  /* warm: the card's category accent (resolved here so --accent-ink inherits
+     from the card, not :root) */
+  color: var(--accent-ink, var(--muted));
+}
+
+/* ============ PHOTO — Banner image over the gradient placeholder ============ */
+.photo {
+  grid-area: banner;
+  /* Fill the 2-wide top-row cell; the image (object-fit: cover) crops to the
+   * cell's width/height with no distortion, so the photo's aspect adapts to the
+   * grid instead of forcing its own. */
+  width: 100%;
+  height: 100%;
+  border-radius: var(--card-radius);
+  border: var(--card-border);
+  overflow: hidden;
+  position: relative;
+  background: var(--photo-bg);
+}
+.photo .banner {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  /* horizontal SWIPE changes the photo (no visible UI). The banner is NOT a
+     scroll region, so claim horizontal gestures for the handler; pan-y keeps
+     any vertical page scroll. */
+  touch-action: pan-y;
+}
+
+/* The shared card chrome — the paper surface every panel sits on. Declared once
+   for the three panels that wear it; each adds only its own layout on top. */
+.message-card,
+.calendar-panel,
+.pinch-tile {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+}
+
+/* ============ MESSAGE CARDS (alert / message / weather / digest) ============ */
+.message-card {
+  padding: var(--pad);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Grid placement by card number (producers decide the slot; left-to-right). */
+.message-card--card1 {
+  grid-area: card1;
+}
+.message-card--card2 {
+  grid-area: card2;
+}
+.message-card--card3 {
+  grid-area: card3;
+}
+.message-card--card4 {
+  grid-area: card4;
+}
+.message-card--card5 {
+  grid-area: card5;
+}
+.message-card--empty {
+  opacity: 0.5;
+}
+
+/* ---- generic tile body ----
+   The producer's HTML fragment lands inside .tile-body verbatim. The viewer
+   styles only the generic prose path (.message-text); a widget (weather,
+   sports, …) ships its OWN <style> inside the posted HTML, so the viewer carries
+   no per-widget CSS and never changes when a widget is added or restyled. The
+   one shared contract is the theme tokens (--ink / --muted / fonts / …) those
+   producer styles reference. */
+.tile-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.tile-empty {
+  margin: 0;
+  font-family: var(--ff-body);
+  font-style: italic;
+  font-weight: 300;
+  font-size: var(--t-card);
+  line-height: 1.38;
+  color: var(--muted);
+}
+
+/* Prose lines (alert / message / digest). The clamp replaces Mary's JS
+   shrink-to-fit: cards are fixed-height grid cells, so overflow ellipsizes at
+   a whole line. */
+.message-text {
+  margin: 0;
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-card);
+  line-height: 1.38;
+  color: #4a4540;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Card 4 (digest) is its own full-width row at 2× the card-row height → room for
+   the full weekly summary, well above the shared 5-line clamp. */
+.message-card--card4 .message-text {
+  -webkit-line-clamp: 16;
+}
+
+/* ============ LIFE CALENDAR ============ */
+.calendar-panel {
+  grid-area: calendar;
+  padding: 24px 22px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.header {
+  margin-bottom: 4px;
+}
+.header h1 {
+  margin: 0;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.event-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  /* Calendar scroll container: a finger-drag pans the agenda vertically
+     instead of clipping events below the fold. min-height:0 lets this flex
+     child shrink so overflow actually engages; touch-action:pan-y commits the
+     drag to a vertical pan (html already sets user-select:none, so the drag
+     never starts a text selection). Mouse/trackpad scrolling is unaffected. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.event-row {
+  display: grid;
+  /* narrow fixed left rail (date over time) → freed width goes to title/location */
+  grid-template-columns: 7rem 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 1.25rem;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.event-row:last-child {
+  border-bottom: none;
+}
+/* left rail: date on top, time stacked directly under it */
+.event-when {
+  grid-row: 1 / span 2;
+  align-self: start;
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.event-date {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  line-height: 1.2;
+  white-space: nowrap; /* compact ranges stay on one line → date + ALL DAY = 2 lines max */
+}
+.event-time {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  line-height: 1.2;
+}
+.event-title {
+  font-family: var(--ff-body);
+  font-weight: 500;
+  font-size: var(--t-body);
+  line-height: 1.14;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-location {
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-location);
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.empty-state,
+.error-state {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-body);
+}
+.error-state {
+  color: var(--clay-ink);
+}
+
+/* ============ COOK TONIGHT (recipe strip) ============
+   A wide, short band: photo at the left in a fixed square, title block filling
+   the rest. Laid out as a row rather than a column because it spans all three
+   grid columns — a stacked photo-over-text tile would waste the width and force
+   a taller row.
+
+   CANONICAL note on the strip's lifecycle — the --cook-h token,
+   .app:has(.pinch-tile) and CookTonight.tsx all point here rather than restate
+   it, because keeping four copies in step is what kept drifting.
+
+   The tile renders nothing unless there is a recipe to show: no snapshot
+   configured, an empty library, and a failed fetch all produce no markup, so
+   .app:has(.pinch-tile) does not match and no row is allocated. The accepted
+   cost is one layout shift per load — the calendar paints at full height and
+   gives up --cook-h plus a --gap when /api/pinch/collection resolves after
+   first paint. That is the deliberate trade: the alternative is every
+   pinch-less kiosk permanently surrendering the same space to a blank card. */
+.pinch-tile {
+  grid-area: cook;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: var(--pad);
+}
+
+/* Square photo sized off the row height so the strip's height is the single
+   knob (--cook-h) — no second dimension to keep in sync. */
+.pinch-photo--tile,
+.pinch-photo--placeholder {
+  flex: 0 0 auto;
+  width: var(--cook-h);
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pinch-photo--placeholder {
+  background: var(--hair);
+}
+
+.pinch-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  /* The vertical budget, since the title is clamped against it:
+
+       eyebrow  --t-eyebrow 18px x inherited 1.3 = 23px
+       title    --t-body    28px x 1.25          = 35px
+       caption  same as eyebrow                  = 23px
+       gaps     2 x 4px                          =  8px
+       padding  2 x 8px                          = 16px
+                                                  ----
+                                                  105px of --cook-h (128px)
+
+     A second title line (+35px) would exceed it, which is why the title is
+     clamped to one below. Raising --t-body or --t-eyebrow, or lowering
+     --cook-h, eats the 23px of slack — check against these numbers first.
+     Horizontal padding stays --pad so the text aligns with the cards. */
+  padding: 8px var(--pad) 8px 0;
+  /* `safe` so that if the budget is ever exceeded the overflow goes off the
+     bottom rather than being split across both edges, which would shave the
+     eyebrow off the top. */
+  justify-content: safe center;
+}
+
+.pinch-tile__eyebrow {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--clay-ink);
+  margin: 0;
+}
+
+/* The clamp lives on an inner span, NOT on this element, for two reasons that
+   each broke it before: a flex item is blockified, so -webkit-box computes to
+   flow-root and the clamp is inert; and the overflow:hidden a clamp needs would
+   give this element an automatic minimum size of zero, making it the only item
+   flex can shrink below its content — which is how the title once rendered at
+   0px between a correct-looking eyebrow and caption. The span is not a flex
+   item and this element keeps a content-based minimum. */
+.pinch-tile__title {
+  font-family: var(--ff-display);
+  font-weight: 400;
+  font-size: var(--t-body);
+  /* 1.25, not the tighter 1.1 a display serif would normally take: the ink box
+     of Instrument Serif runs taller than a 1.1 line box, and the clamp below
+     clips at the box edge. Giving the ink room in the LINE box is the fix —
+     padding on the clamp box would instead open a window that the clamped
+     second line paints into. */
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* One line only — see the budget arithmetic on .pinch-tile__body. No padding
+   here: a clamp sizes its CONTENT box to N lines but clips at the PADDING box,
+   so any padding-block opens a window the truncated next line paints into. The
+   title's line-height carries the ink instead. Matches .message-text, the
+   file's other clamp. */
+.pinch-tile__title > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pinch-tile__meta {
+  font-family: var(--ff-mono);
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0;
+}

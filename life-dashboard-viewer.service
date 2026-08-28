@@ -1,0 +1,14 @@
+[Unit]
+Description=Life Dashboard Viewer (calendar kiosk app + ICS proxy)
+
+[Service]
+Type=simple
+# The updater flips %h/ld-current between release dirs; .env is a symlink the
+# updater plants in each release (source of truth: %h/ld-data/.env).
+WorkingDirectory=%h/ld-current
+ExecStart=/usr/bin/node --env-file=%h/ld-current/.env %h/ld-current/server.js
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
