@@ -22,17 +22,16 @@ just test
 
 ## Kiosk deploy
 
-This app ships as a SEED. The one-shot Raspberry Pi kiosk install — toolchain,
-build, `.env`, systemd units, and the Chromium kiosk — is the canonical
-procedure in the repo-root [`SEED.md`](../../SEED.md);
-install it via the `seed-install` flow rather than copying units by hand. The unit
-files alongside this README (`life-dashboard-viewer.service`, `life-kiosk-viewer.service`) are
-systemd **user** units using the `%h` home-dir specifier — the install copies them into
-`~/.config/systemd/user/` with no `sudo`, rewriting only the dashboard unit's `ExecStart` to the
-resolved `node` path (systemd needs an absolute path; covers user-local Node) and copying the kiosk
-unit unchanged (Chromium is a system package at `/usr/bin/chromium`). `life-kiosk-viewer.service` orders itself
-`After=life-dashboard-viewer.service` and recycles Chromium hourly (`RuntimeMaxSec=1h`) so
-any manual navigation away from the kiosk URL resets within the hour.
+The canonical bring-up is the repo-root [`README.md`](../README.md) § Bring-up
+on a fresh Pi, with the updater bootstrap in
+[`updater/README.md`](../updater/README.md) § Bootstrap — this repo no longer
+ships as a SEED. The unit files at the repo root
+(`life-dashboard-viewer.service`, `life-kiosk-viewer.service`) are systemd
+**user** units using the `%h` home-dir specifier; Chromium is a system package
+at `/usr/bin/chromium`. `life-kiosk-viewer.service` orders itself
+`After=life-dashboard-viewer.service` and recycles Chromium hourly
+(`RuntimeMaxSec=1h`) so any manual navigation away from the kiosk URL resets
+within the hour.
 
 ## Configuration
 

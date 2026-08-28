@@ -30,17 +30,21 @@ template/main && git push` (the updater deploys the merge like any other push).
 
 ## Bring-up on a fresh Pi
 
-1. Create the household repo (above) and give the Pi read access to it.
-2. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
+1. Install the toolchain: `/usr/bin/node` ≥ 20.6 (both units and the updater
+   hardcode that path; the `--env-file` flag needs 20.6) and Chromium at
+   `/usr/bin/chromium` — on Raspberry Pi OS, `sudo apt install nodejs chromium`
+   and check `node --version`.
+2. Create the household repo (above) and give the Pi read access to it.
+3. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
    `--user` unit that would otherwise die with the login session — then clone
    to `~/ld-releases/bootstrap`, initial `~/ld-current` symlink, `~/ld-data/`,
    deploy-key git auth, enable the timer) — exact commands in
    `updater/README.md` § Bootstrap.
-3. Write `~/ld-data/.env` from the keys documented in `.env.example`
+4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
    APIs; `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
    they are never in any repo.
-4. Install and start the viewer + kiosk units:
+5. Install and start the viewer + kiosk units:
    ```sh
    cp life-dashboard-viewer.service life-kiosk-viewer.service ~/.config/systemd/user/
    systemctl --user daemon-reload
