@@ -40,7 +40,7 @@ checks. That needs one manual seed:
 
 ```sh
 loginctl enable-linger $USER   # FIRST: without lingering, --user units silently stop with the login session
-git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap
+git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap   # public repo; private → see Git auth below FIRST
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
 cp updater/life-dashboard-updater.* ~/.config/systemd/user/
