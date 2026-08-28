@@ -30,6 +30,10 @@ export function createApp({
   // behaves exactly as it did before the tile existed. A non-null pinch missing
   // either key is fatal at wiring time, not a quiet disable.
   pinch = null,
+  // Deploy stamp written by the updater at flip time ({ sha, deployedAt }), or
+  // null in a dev tree — the route then serves nulls rather than 404 so the
+  // agent's verify loop can always distinguish "unstamped" from "unreachable".
+  version = null,
 }) {
   const app = new Hono();
 
@@ -80,6 +84,11 @@ export function createApp({
   // Single wildcard covers every path including /banners/* and the SPA mounts
   // server.js registers on this app instance after createApp returns.
   app.use('*', remoteGuard);
+
+  // /api/version: the agent's deploy-verification surface.
+  app.get('/api/version', (c) =>
+    c.json({ sha: version?.sha ?? null, deployedAt: version?.deployedAt ?? null }),
+  );
 
   // /api/ical: proxies the upstream ICS with a single-slot 60s cache (stale-on-error).
   let cached = null;

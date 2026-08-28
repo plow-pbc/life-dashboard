@@ -108,6 +108,24 @@ describe('createApp', () => {
     });
   });
 
+  describe('/api/version', () => {
+    it('serves /api/version from the injected stamp', async () => {
+      const app = appWith(vi.fn(), {
+        version: { sha: 'abc123', deployedAt: '2026-08-28T00:00:00Z' },
+      });
+      const res = await app.fetch(new Request('http://localhost/api/version'));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ sha: 'abc123', deployedAt: '2026-08-28T00:00:00Z' });
+    });
+
+    it('serves nulls when no stamp exists (dev)', async () => {
+      const app = appWith(vi.fn());
+      const res = await app.fetch(new Request('http://localhost/api/version'));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ sha: null, deployedAt: null });
+    });
+  });
+
   describe('host guard on /banners/*', () => {
     // The static file mount lives in server.js (outside createApp), but the
     // whole-surface guard covers every path so it runs before serveStatic

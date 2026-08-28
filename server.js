@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -45,6 +45,15 @@ if (!pinch) {
   console.warn('Recipe tile disabled (set PINCH_DATA_FILE to enable /api/pinch/*).');
 }
 
+// Deploy stamp dropped into the release dir by the updater at flip time.
+// A dev tree has no stamp; /api/version then serves nulls.
+let version = null;
+try {
+  version = JSON.parse(await readFile('./version.json', 'utf8'));
+} catch {
+  /* dev tree: no stamp */
+}
+
 const app = createApp({
   fetchUpstream: async () => {
     const res = await fetch(ICAL_URL, { signal: AbortSignal.timeout(10_000) });
@@ -73,6 +82,7 @@ const app = createApp({
   bannerStore: remoteWritesEnabled ? createBannerStore(BANNER_DIR) : undefined,
   messageToken: DASHBOARD_TOKEN,
   pinch,
+  version,
 });
 
 // Banner images live outside the bundle so they can be swapped without a
