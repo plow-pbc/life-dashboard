@@ -133,4 +133,19 @@ describe('bootstrap.sh', () => {
     expect(await curlCalls()).toHaveLength(0);
     await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
   });
+
+  it('a pair response with a newline in a field is rejected before ~/ld-data/.env is written', async () => {
+    const badResponse = JSON.stringify({
+      uid: 'kio_1',
+      read_token: 'rt_secret',
+      cards_url: 'https://api.plow.co/v1/kiosks/kio_1/cards',
+      status_url: 'https://api.plow.co/v1/kiosks/kio_1/status\nEXTRA=injected',
+    });
+    await stub('curl', `echo "$@" >> "${curlLog}"\nprintf '%s' '${badResponse}'`);
+    await expect(bootstrap('--pair', 'ABC123')).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('invalid status_url'),
+    });
+    await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });
