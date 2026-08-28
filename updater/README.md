@@ -36,16 +36,28 @@ pinned; a pinned SHA is never retried, so push a new commit to deploy again.
 The updater runs *from the current release* (`ExecStart` points at
 `~/ld-current/updater/updater.mjs`), so a broken push can never brick the
 updater — the new copy only takes over after its release passes the health
-checks. That needs one manual seed:
+checks. That needs one seed — `bootstrap.sh` is the one-shot (idempotent:
+re-running repairs a partial install, never clobbers state or `.env`):
+
+```sh
+sh updater/bootstrap.sh https://github.com/<org>/<household-repo>.git   # public repo; private → see Git auth below FIRST
+```
+
+It checks the toolchain, enables lingering, creates `~/ld-data/`, clones the
+bootstrap release, builds it, installs ALL the user units (viewer + kiosk +
+updater timer), and starts them. The equivalent by hand, for reference:
 
 ```sh
 loginctl enable-linger $USER   # FIRST: without lingering, --user units silently stop with the login session
-git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap   # public repo; private → see Git auth below FIRST
+mkdir -p ~/ld-releases ~/.config/systemd/user
+git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
-cp updater/life-dashboard-updater.* ~/.config/systemd/user/
+for name in .env data banners; do ln -sfn ~/ld-data/$name ~/ld-releases/bootstrap/$name; done
+cd ~/ld-releases/bootstrap && npm ci && npm run build
+cp life-dashboard-viewer.service life-kiosk-viewer.service updater/life-dashboard-updater.* ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now life-dashboard-updater.timer
+systemctl --user enable --now life-dashboard-viewer life-kiosk-viewer life-dashboard-updater.timer
 ```
 
 Git auth: none for a **public** household repo — the timer fetches over

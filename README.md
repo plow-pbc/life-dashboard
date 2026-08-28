@@ -45,22 +45,24 @@ template/main && git push` (the updater deploys the merge like any other push).
 2. Create the household repo (above). Public: the Pi fetches anonymously —
    nothing to provision. Private: give the Pi a read-only credential
    (`updater/README.md` § Git auth).
-3. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
-   `--user` unit that would otherwise die with the login session — then clone
-   to `~/ld-releases/bootstrap`, initial `~/ld-current` symlink, `~/ld-data/`,
-   enable the timer) — exact commands in
-   `updater/README.md` § Bootstrap (git auth only for a private repo).
+3. One-shot install — lingering, `~/ld-data/`, bootstrap release + build,
+   all three user units, started (idempotent; `updater/README.md` § Bootstrap
+   has the by-hand equivalent, and git auth only matters for a private repo).
+   The Pi has no clone yet, so fetch the script by cloning to a scratch path
+   and run it from there:
+   ```sh
+   HOUSEHOLD=https://github.com/<you>/life-dashboard-<household>.git
+   SCRATCH=$(mktemp -d)
+   git clone --depth 1 "$HOUSEHOLD" "$SCRATCH/repo"
+   sh "$SCRATCH/repo/updater/bootstrap.sh" "$HOUSEHOLD"
+   rm -rf "$SCRATCH"
+   ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
    APIs and the off-box `/api/version` verification read;
    `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
-   they are never in any repo.
-5. Install and start the viewer + kiosk units:
-   ```sh
-   cp life-dashboard-viewer.service life-kiosk-viewer.service ~/.config/systemd/user/
-   systemctl --user daemon-reload
-   systemctl --user enable --now life-dashboard-viewer life-kiosk-viewer
-   ```
+   they are never in any repo. Then `systemctl --user restart
+   life-dashboard-viewer`.
 
 ## The agent's deploy contract
 
