@@ -8,15 +8,16 @@ links to the doc that owns its details; this file owns the *sequence* and the
 ## The topology (and why it's shaped this way)
 
 ```
-plow-pbc/life-dashboard          the public TEMPLATE (this repo)
-        │  fork (stays public)
-<you>/life-dashboard-<household> your household repo, under a PERSONAL account
-        │                        │
-        │ anonymous HTTPS fetch  │ SSH push over a write deploy key
-        ▼                        │
-   Pi updater  ◄─────────────────┘  the agent (any machine that can reach
-   builds, health-checks,           GitHub + the Pi)
-   flips atomically, rolls back
+plow-pbc/life-dashboard              the public TEMPLATE (this repo)
+         │  fork (stays public)
+         ▼
+<you>/life-dashboard-<household>     your household repo, PERSONAL account
+     ▲                    │
+     │ SSH push over a    │ anonymous HTTPS fetch (timer, ~2 min)
+     │ write deploy key   ▼
+     │                 Pi updater — builds, health-checks,
+     │                 flips atomically, rolls back
+ the agent ···· diagnostics-only SSH ····►  Pi
 ```
 
 - **The household repo is a public fork.** Public makes the Pi's fetches
