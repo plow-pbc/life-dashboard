@@ -70,7 +70,7 @@ template/main && git push` (the updater deploys the merge like any other push).
   default identity or trust state:
 
   ```sh
-  GIT_SSH_COMMAND='ssh -i <state>/ld-dev/ssh/deploy_key -o IdentitiesOnly=yes \
+  export GIT_SSH_COMMAND='ssh -i <state>/ld-dev/ssh/deploy_key -o IdentitiesOnly=yes \
     -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
   ```
 - **Verify via `GET /api/version`** with the household bearer
