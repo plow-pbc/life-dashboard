@@ -42,7 +42,8 @@ template/main && git push` (the updater deploys the merge like any other push).
    `updater/README.md` § Bootstrap.
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
-   APIs; `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
+   APIs and the off-box `/api/version` verification read;
+   `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
    they are never in any repo.
 5. Install and start the viewer + kiosk units:
    ```sh
@@ -55,8 +56,10 @@ template/main && git push` (the updater deploys the merge like any other push).
 
 - **Push to the household repo's `main` = deploy.** The updater fetches within
   2 minutes, builds, tests, health-checks, and flips atomically.
-- **Verify via `GET /api/version`** → `{sha, deployedAt}`. Success is a live
-  SHA match; anything else, read `~/ld-releases/state/last-result.json`.
+- **Verify via `GET /api/version`** with the household bearer
+  (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
+  → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
+  `~/ld-releases/state/last-result.json`.
 - **SSH is for diagnostics only** (journal reads, `systemctl --user restart
   life-dashboard-viewer`, updater state) — never the deploy path.
 

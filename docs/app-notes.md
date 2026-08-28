@@ -40,7 +40,7 @@ within the hour.
 | `ICAL_URL` | yes | — | Full private ICS URL. Secret. |
 | `NEXT_N` | no | `12` | Max events displayed. **Baked at build time** — rebuild to change. |
 | `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
-| `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message` and the texted-photo CRUD `POST`/`DELETE /api/banners`). Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
+| `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
 | `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated). |
 
 ## Cook Tonight (optional)
@@ -59,7 +59,7 @@ Only a photo served by this app's own `/api/pinch/photos/<id>` route is rendered
 
 ## Architecture
 
-One Node process serves the Vite-built React SPA AND proxies the secret ICS URL at `/api/ical` with a 60-second in-memory cache and stale-on-failure fallback. The React app fetches that same-origin endpoint, parses with `ical.js` (recurrence-aware, drops `STATUS:CANCELLED`), and renders a list of the next `NEXT_N` events. The page calls `location.reload()` every `REFRESH_MS` (5 min default) — that, not in-app polling, is the freshness + state-recovery mechanism. Without `DASHBOARD_TOKEN` the server binds loopback only; with it, it binds `0.0.0.0` so remote producers can reach the write APIs. A Host-header allowlist defends loopback callers against DNS rebinding; non-loopback callers may only POST `/api/message` and mutate banners via `POST`/`DELETE /api/banners` with the bearer (the remote surface is write-only — reads, the banner listing, and the SPA stay loopback) plus the open `/healthz` probe.
+One Node process serves the Vite-built React SPA AND proxies the secret ICS URL at `/api/ical` with a 60-second in-memory cache and stale-on-failure fallback. The React app fetches that same-origin endpoint, parses with `ical.js` (recurrence-aware, drops `STATUS:CANCELLED`), and renders a list of the next `NEXT_N` events. The page calls `location.reload()` every `REFRESH_MS` (5 min default) — that, not in-app polling, is the freshness + state-recovery mechanism. Without `DASHBOARD_TOKEN` the server binds loopback only; with it, it binds `0.0.0.0` so remote producers can reach the write APIs. A Host-header allowlist defends loopback callers against DNS rebinding; non-loopback callers may only POST `/api/message`, mutate banners via `POST`/`DELETE /api/banners`, and read `GET /api/version` — all with the bearer (every other read, the banner listing, and the SPA stay loopback) plus the open `/healthz` probe.
 
 ## Messages (optional)
 
@@ -150,7 +150,7 @@ for the same card lands. **To clear a card, post a newer message to that card**
 To enable:
 
 1. **Generate a token:** `openssl rand -hex 32`. Set `DASHBOARD_TOKEN=<token>` in `.env` on the Pi, then restart `life-dashboard-viewer.service`. The server will bind `0.0.0.0:5174` and register `/api/message`.
-2. **Configure producers** (e.g. Plow on the Mac) to POST `{"card","type","text"}` with `Authorization: Bearer <token>` to `http://<pi-tailscale-hostname>:5174/api/message`. Default to a Tailscale hostname — the bearer is then WireGuard-encrypted on the wire. A raw LAN hostname/IP works as a trusted-household fallback, with the bearer transiting in plaintext. The remote surface is write-only: GETs are loopback-only (the kiosk).
+2. **Configure producers** (e.g. Plow on the Mac) to POST `{"card","type","text"}` with `Authorization: Bearer <token>` to `http://<pi-tailscale-hostname>:5174/api/message`. Default to a Tailscale hostname — the bearer is then WireGuard-encrypted on the wire. A raw LAN hostname/IP works as a trusted-household fallback, with the bearer transiting in plaintext. The remote surface is write-only except `GET /api/version` (bearer-gated, for deploy verification): every other GET is loopback-only (the kiosk).
 
 If `DASHBOARD_TOKEN` is not set, the `/api/message` route is not registered and the message cards render as muted empty-state placeholders (the calendar still works).
 
