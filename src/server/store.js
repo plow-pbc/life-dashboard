@@ -20,37 +20,40 @@ export async function createFileStore(path) {
   // (writes = p.catch(noop)) — a failed write still rejects to its caller via
   // p, but the next put() chains off a resolved promise, not a poisoned one.
   let writes = Promise.resolve();
+  // Shared tmp+rename write, queued behind any write in flight: two
+  // concurrent writes share the same .tmp path, so the loser's rename would
+  // throw (tmp already moved by the winner). `buildNext` computes the map to
+  // persist from the current `byCard` — put() merges one key in, replace()
+  // swaps the whole thing.
+  const queueWrite = (buildNext) => {
+    const write = async () => {
+      const next = buildNext();
+      const tmp = `${path}.tmp`;
+      await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
+      await rename(tmp, path);
+      byCard = next;
+    };
+    const p = writes.then(write);
+    // Swallow rejections on the shared tail so a failed write still rejects
+    // to its own caller (via p) without poisoning the chain for the next call.
+    writes = p.catch(() => {});
+    return p;
+  };
   return {
     async get(card) {
       return Object.prototype.hasOwnProperty.call(byCard, card) ? byCard[card] : null;
     },
     put(message) {
-      const write = async () => {
+      return queueWrite(() => {
         const next = Object.assign(Object.create(null), byCard);
         next[message.card] = message;
-        const tmp = `${path}.tmp`;
-        await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
-        await rename(tmp, path);
-        byCard = next;
-      };
-      const p = writes.then(write);
-      writes = p.catch(() => {});
-      return p;
+        return next;
+      });
     },
     // Commit the complete snapshot in one atomic write: any card absent from
-    // it is dropped, never left stale from a prior put(). Same tmp+rename
-    // path and write queue as put() — just a different `next`.
+    // it is dropped, never left stale from a prior put().
     replace(byCardSnapshot) {
-      const write = async () => {
-        const next = Object.assign(Object.create(null), byCardSnapshot);
-        const tmp = `${path}.tmp`;
-        await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
-        await rename(tmp, path);
-        byCard = next;
-      };
-      const p = writes.then(write);
-      writes = p.catch(() => {});
-      return p;
+      return queueWrite(() => Object.assign(Object.create(null), byCardSnapshot));
     },
   };
 }
