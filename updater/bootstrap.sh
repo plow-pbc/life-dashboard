@@ -37,11 +37,12 @@ mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
 
 # -- bootstrap release + the ld-current symlink the units run from -------------
 mkdir -p "$HOME/ld-releases"
-# Clone to a sibling and rename only on success: an interrupted clone can
-# leave even a HEAD-resolvable-but-incomplete tree, and a bare existence (or
-# rev-parse) check would accept it forever. The rename is the commit point.
-[ -d "$HOME/ld-releases/bootstrap" ] || {
-  rm -rf "$HOME/ld-releases/bootstrap.new"
+# Two guards compose: rev-parse rejects a broken pre-existing clone (one
+# made outside this script), and the .new-then-rename makes THIS script's
+# clone all-or-nothing — an interrupted run leaves no bootstrap/ at all, so
+# the retry re-clones instead of accepting a half-checkout.
+git -C "$HOME/ld-releases/bootstrap" rev-parse HEAD >/dev/null 2>&1 || {
+  rm -rf "$HOME/ld-releases/bootstrap" "$HOME/ld-releases/bootstrap.new"
   git clone "$REPO_URL" "$HOME/ld-releases/bootstrap.new"
   mv "$HOME/ld-releases/bootstrap.new" "$HOME/ld-releases/bootstrap"
 }
