@@ -96,12 +96,13 @@ fork = anonymous fetch).
 
 ## 4. Teach the agent
 
-The deploy contract the agent follows is owned by
-[`README.md` § The agent's deploy contract](../README.md) — one copy, not
-two. What this runbook adds are the two hard rules: **success is only a live
-SHA match** on `GET /api/version` (bearer-authenticated off-box), and **no
-personal data in the public repo**. A worked example of an agent skill
-encoding both lives in the operator's agent repo.
+The contract the agent follows has exactly one owner per rule — this
+section is only the map: the deploy contract (push = deploy, live-SHA
+verification, SSH scope) is
+[`README.md` § The agent's deploy contract](../README.md#the-agents-deploy-contract);
+the no-personal-data rule is [`README.md` § Privacy](../README.md#privacy)
+plus the fork bullet in the topology section above. A worked example of an
+agent skill encoding the whole contract lives in the operator's agent repo.
 
 ## 5. Prove the loop end to end
 
