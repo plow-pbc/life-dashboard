@@ -103,10 +103,13 @@ shows "Can't reach calendar".
     -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
   ```
 
-- **Verify via `GET /api/version`** with the household bearer
-  (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
-  → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
-  `~/ld-releases/state/last-result.json`.
+- **Verify the deploy.** In fork mode, `GET /api/version` with the household
+  bearer (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401
+  without it) → `{sha, deployedAt}`; success is a live SHA match. In paired
+  mode the Pi binds loopback only, so verification instead reads the
+  updater's own report: `GET /v1/kiosks/{uid}` on Plow returns the last
+  `KIOSK_STATUS_URL` PUT (`{sha, deployed_at, last_result}`). Either way,
+  anything else, read `~/ld-releases/state/last-result.json`.
 - **SSH is for diagnosis and repair** (journal reads, `systemctl --user
   restart life-dashboard-viewer`, updater state, fixing live state) — never
   the deploy path: viewer-code changes ride the push, not the shell.

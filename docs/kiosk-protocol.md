@@ -11,7 +11,10 @@ contract is what keeps producers and viewer in lockstep.
 
 ## The wire request
 
-Every producer POSTs ONE message to the household's Pi message API:
+Every producer POSTs ONE message. In local/fork mode that goes straight to the
+household's Pi message API, below; in paired mode (no fork) the Pi binds
+loopback only, so producers instead `POST /v1/kiosks/{uid}/cards` on Plow,
+which the Pi's own poll of `KIOSK_REMOTE_URL` picks up:
 
     POST <DASHBOARD_ENDPOINT_URL>          # the full .../api/message URL, verbatim
     Authorization: Bearer <DASHBOARD_TOKEN>
