@@ -43,9 +43,13 @@ template/main && git push` (the updater deploys the merge like any other push).
    (`updater/README.md` § Git auth).
 3. One-shot install — lingering, `~/ld-data/`, bootstrap release + build,
    all three user units, started (idempotent; `updater/README.md` § Bootstrap
-   has the by-hand equivalent, and git auth only matters for a private repo):
+   has the by-hand equivalent, and git auth only matters for a private repo).
+   The Pi has no clone yet, so fetch the script by cloning to a scratch path
+   and run it from there:
    ```sh
-   sh updater/bootstrap.sh https://github.com/<you>/life-dashboard-<household>.git
+   HOUSEHOLD=https://github.com/<you>/life-dashboard-<household>.git
+   git clone --depth 1 "$HOUSEHOLD" /tmp/ld-bootstrap
+   sh /tmp/ld-bootstrap/updater/bootstrap.sh "$HOUSEHOLD"
    ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo

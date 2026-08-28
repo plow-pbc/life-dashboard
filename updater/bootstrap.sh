@@ -37,20 +37,25 @@ mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
 
 # -- bootstrap release + the ld-current symlink the units run from -------------
 mkdir -p "$HOME/ld-releases"
-if [ ! -d "$HOME/ld-releases/bootstrap/.git" ]; then
+# rev-parse, not a bare .git check: an interrupted clone leaves .git behind
+# with an incomplete checkout, and a repair run must re-clone it.
+git -C "$HOME/ld-releases/bootstrap" rev-parse HEAD >/dev/null 2>&1 || {
   rm -rf "$HOME/ld-releases/bootstrap"
   git clone "$REPO_URL" "$HOME/ld-releases/bootstrap"
-fi
+}
 [ -L "$HOME/ld-current" ] || ln -s "$HOME/ld-releases/bootstrap" "$HOME/ld-current"
 
-# The bootstrap release must be runnable: the updater binary runs from
-# ld-current, and the viewer serves from its dist/.
-cd "$HOME/ld-releases/bootstrap"
+# The live release must be runnable: the updater binary runs from ld-current,
+# and the viewer serves from its dist/. On a first run that IS the bootstrap
+# clone; on a repair run it is whatever release the updater promoted — build
+# and install units from THERE, never from a stale bootstrap snapshot.
+cd "$HOME/ld-current/"
 npm ci
 npm run build
 
 # -- units: viewer + kiosk from the release, updater timer from the release ----
 mkdir -p "$HOME/.config/systemd/user"
+# Still cwd ~/ld-current: units come from the LIVE release (see above).
 cp life-dashboard-viewer.service life-kiosk-viewer.service \
    updater/life-dashboard-updater.service updater/life-dashboard-updater.timer \
    "$HOME/.config/systemd/user/"
