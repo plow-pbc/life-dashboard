@@ -12,6 +12,10 @@ household's repo; the wall updates itself.
 
 ## How households use this
 
+The end-to-end sequence — fork, keys, Pi, agent, and the prove-the-loop
+checklist — is [`docs/runbook.md`](docs/runbook.md); the sections below and
+`updater/README.md` own the per-step details it links to.
+
 Each household deploys from its **own copy** of this template. A public
 fork is the simplest shape — the Pi then fetches with no credential at all —
 and it is safe because the repo holds the *frame*, never the data (see
