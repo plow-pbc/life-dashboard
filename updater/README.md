@@ -49,12 +49,16 @@ systemctl --user enable --now life-dashboard-updater.timer
 ```
 
 Git auth: none for a **public** household repo — the timer fetches over
-anonymous HTTPS. For a **private** one, the fetches run under systemd with no
-ssh-agent, so give the Pi a passphrase-less read-only credential pinned
-**globally** (fresh release clones don't inherit repo-local config), e.g.:
+anonymous HTTPS and the clone above is the whole story. For a **private**
+one, auth must be in place BEFORE the bootstrap clone, and the origin must be
+the SSH URL (an HTTPS origin never consults the SSH key): the fetches run
+under systemd with no ssh-agent, so give the Pi a passphrase-less read-only
+key pinned **globally** (fresh release clones don't inherit repo-local
+config), then clone over SSH —
 
 ```sh
 git config --global core.sshCommand 'ssh -i ~/.ssh/ld_deploy -o IdentitiesOnly=yes'
+git clone git@github.com:<org>/<household-repo>.git ~/ld-releases/bootstrap   # instead of the HTTPS clone above
 ```
 
 The first timer run replaces `bootstrap` with a real `<sha>` release.
