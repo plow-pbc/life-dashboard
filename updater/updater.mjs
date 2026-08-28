@@ -153,7 +153,8 @@ export async function run(deps = {}) {
   await mkdir(releaseDir, { recursive: true });
   const origin = await exec(['git', 'config', '--get', 'remote.origin.url'], { cwd: currentDir });
   const cloned = await exec(['git', 'clone', origin.stdout.trim(), releaseDir]);
-  if (cloned.code !== 0) return fail('build-failed', `git clone: ${tail(cloned.stderr)}`);
+  if (cloned.code !== 0)
+    return fail('build-failed', `git clone: ${tail(cloned.stderr || cloned.stdout)}`);
 
   // Shared household state (secrets, messages, photos) lives outside the
   // release dirs and is symlinked into each one — before the build/test steps,
