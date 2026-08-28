@@ -72,9 +72,10 @@ to this server's `/api/message`
 endpoint — local/fork mode only. In paired mode producers instead POST to the
 Plow kiosk-store endpoint (`docs/kiosk-protocol.md`); this server polls it via
 `KIOSK_REMOTE_URL` and `/api/message` here answers 405. Storage is a file-backed
-JSON store (`data/messages.json`) keyed by **card number**: each POST writes
-the latest message for its card slot, so a chatty producer can never evict
-another card's content. The kiosk browser fetches `/api/message?card=N` from
+JSON store (`data/messages.json`) keyed by **card number**: in local/fork mode
+each POST writes the latest message for its card slot, so a chatty producer
+can never evict another card's content; in paired mode the 60 s poll
+write-through does the same. The kiosk browser fetches `/api/message?card=N` from
 the same-origin server (the bearer token never reaches the browser) and renders
 five numbered slots. A card whose slot has no stored message renders a quiet
 invitation placeholder so the layout stays at fixed dimensions all day.

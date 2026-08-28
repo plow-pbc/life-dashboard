@@ -13,7 +13,7 @@ contract is what keeps producers and viewer in lockstep.
 
 Every producer POSTs ONE message. In local/fork mode that goes straight to the
 household's Pi message API, below; in paired mode (no fork) the Pi binds
-loopback only, so producers instead `POST /v1/kiosks/{uid}/cards` on Plow,
+loopback only, so producers instead `POST /v1/kiosks/<uid>/cards` on Plow,
 which the Pi's own poll of `KIOSK_REMOTE_URL` picks up:
 
     # local/fork mode: the Pi's own message API
