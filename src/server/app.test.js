@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createApp } from './app.js';
+import { createCardPoller } from './remote.js';
 
 function appWith(fetcher, opts = {}) {
   return createApp({
@@ -189,11 +190,18 @@ function memStore(initial = {}) {
 }
 const auth = (t = 'tok') => ({ Authorization: `Bearer ${t}` });
 const NO_TOKEN = Symbol('no-token');
-function msgApp({ store = memStore(), token = 'tok', remote = '127.0.0.1', pinch } = {}) {
+function msgApp({
+  store = memStore(),
+  token = 'tok',
+  remote = '127.0.0.1',
+  pinch,
+  readOnly = false,
+} = {}) {
   return createApp({
     fetchUpstream: vi.fn(),
     listBanners: vi.fn(async () => []),
     messageStore: store,
+    messageReadOnly: readOnly,
     ...(token !== NO_TOKEN && { messageToken: token }),
     getRemote: () => remote,
     pinch,
@@ -289,6 +297,30 @@ describe('/api/message routes', () => {
     const app = msgApp({ token: NO_TOKEN });
     const res = await app.fetch(new Request('http://localhost/api/message'));
     expect(res.status).toBe(404);
+  });
+});
+
+describe('remote store mode (KIOSK_REMOTE_URL)', () => {
+  // The poller IS the message store in this mode; POST has nowhere to write.
+  const remoteApp = (fetchCards) =>
+    msgApp({ store: createCardPoller({ fetchCards, store: memStore() }), readOnly: true });
+
+  it('GET serves the card polled from upstream', async () => {
+    const app = remoteApp(async () => ({ 1: { type: 'alert', text: 'polled', posted_at: 'x' } }));
+    const res = await app.fetch(new Request('http://localhost/api/message?card=1'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ message: { card: '1', type: 'alert', text: 'polled' } });
+  });
+
+  it('POST is 405 even with the bearer — the store is upstream', async () => {
+    const res = await remoteApp(async () => ({})).fetch(
+      new Request('http://localhost/api/message', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({ card: '1', type: 'alert', text: 'x' }),
+      }),
+    );
+    expect(res.status).toBe(405);
   });
 });
 

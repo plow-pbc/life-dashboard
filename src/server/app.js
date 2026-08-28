@@ -34,6 +34,9 @@ export function createApp({
   // null in a dev tree — the route then serves nulls rather than 404 so the
   // agent's verify loop can always distinguish "unstamped" from "unreachable".
   version = null,
+  // Remote store mode: messageStore is the createCardPoller() view of the
+  // Plow kiosk store, so there is nothing to POST into — 405, not 401.
+  messageReadOnly = false,
 }) {
   const app = new Hono();
 
@@ -144,25 +147,31 @@ export function createApp({
       const message = card ? await messageStore.get(card) : null;
       return c.json({ message });
     });
-    app.post('/api/message', async (c) => {
-      if (!bearerOk(c)) return c.text('unauthorized', 401);
-      const body = await c.req.json().catch(() => null);
-      const card = typeof body?.card === 'string' ? body.card.trim() : '';
-      if (!card) return c.text('card required', 400);
-      const type = typeof body?.type === 'string' ? body.type.trim() : '';
-      if (!type) return c.text('type required', 400);
-      const text = typeof body?.text === 'string' ? body.text.trim() : '';
-      if (!text) return c.text('text required', 400);
-      // Optional producer-controlled eyebrow: a string (incl. '') is stored as
-      // `title` so the producer can override or hide the card's title; absent
-      // leaves it off the message and the viewer falls back to the type label.
-      const message = typeof body?.title === 'string'
-        ? { card, type, text, title: body.title.trim() }
-        : { card, type, text };
-      await messageStore.put(message);
-      return c.json({ message });
-    });
-    app.on(['PUT', 'DELETE', 'PATCH'], '/api/message', (c) => c.text('method not allowed', 405));
+    if (!messageReadOnly) {
+      app.post('/api/message', async (c) => {
+        if (!bearerOk(c)) return c.text('unauthorized', 401);
+        const body = await c.req.json().catch(() => null);
+        const card = typeof body?.card === 'string' ? body.card.trim() : '';
+        if (!card) return c.text('card required', 400);
+        const type = typeof body?.type === 'string' ? body.type.trim() : '';
+        if (!type) return c.text('type required', 400);
+        const text = typeof body?.text === 'string' ? body.text.trim() : '';
+        if (!text) return c.text('text required', 400);
+        // Optional producer-controlled eyebrow: a string (incl. '') is stored as
+        // `title` so the producer can override or hide the card's title; absent
+        // leaves it off the message and the viewer falls back to the type label.
+        const message =
+          typeof body?.title === 'string'
+            ? { card, type, text, title: body.title.trim() }
+            : { card, type, text };
+        await messageStore.put(message);
+        return c.json({ message });
+      });
+    }
+    const blocked = messageReadOnly
+      ? ['POST', 'PUT', 'DELETE', 'PATCH']
+      : ['PUT', 'DELETE', 'PATCH'];
+    app.on(blocked, '/api/message', (c) => c.text('method not allowed', 405));
   }
 
   // Texted-photo CRUD. GET /api/banners (the kiosk's loopback list) stays
