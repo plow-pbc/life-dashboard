@@ -40,7 +40,7 @@ checks. That needs one manual seed:
 
 ```sh
 loginctl enable-linger $USER   # FIRST: without lingering, --user units silently stop with the login session
-git clone git@github.com:<org>/<household-repo>.git ~/ld-releases/bootstrap
+git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap   # public repo; private → see Git auth below FIRST
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
 cp updater/life-dashboard-updater.* ~/.config/systemd/user/
@@ -48,12 +48,17 @@ systemctl --user daemon-reload
 systemctl --user enable --now life-dashboard-updater.timer
 ```
 
-Git auth: the timer's fetches run under systemd with no ssh-agent, so give the
-Pi a passphrase-less read-only deploy key and pin it **globally** (fresh
-release clones don't inherit repo-local config):
+Git auth: none for a **public** household repo — the timer fetches over
+anonymous HTTPS and the clone above is the whole story. For a **private**
+one, auth must be in place BEFORE the bootstrap clone, and the origin must be
+the SSH URL (an HTTPS origin never consults the SSH key): the fetches run
+under systemd with no ssh-agent, so give the Pi a passphrase-less read-only
+key pinned **globally** (fresh release clones don't inherit repo-local
+config), then clone over SSH —
 
 ```sh
 git config --global core.sshCommand 'ssh -i ~/.ssh/ld_deploy -o IdentitiesOnly=yes'
+git clone git@github.com:<org>/<household-repo>.git ~/ld-releases/bootstrap   # instead of the HTTPS clone above
 ```
 
 The first timer run replaces `bootstrap` with a real `<sha>` release.
