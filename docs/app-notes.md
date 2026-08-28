@@ -35,15 +35,15 @@ within the hour.
 
 ## Configuration
 
-| Variable           | Required | Default  | Notes                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ICAL_URL`         | no       | —        | Full private ICS URL. Secret. Blank → `/api/ical` answers 502 and the client shows its "Can't reach calendar" state; cards still render.                                                                                                                                                                                                                                 |
-| `NEXT_N`           | no       | `12`     | Max events displayed. **Baked at build time** — rebuild to change.                                                                                                                                                                                                                                                                                                       |
-| `REFRESH_MS`       | no       | `300000` | Page reload interval (5 min). **Baked at build time**.                                                                                                                                                                                                                                                                                                                   |
-| `DASHBOARD_TOKEN`  | no       | —        | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret.                                                                                                             |
-| `KIOSK_REMOTE_URL` | no       | —        | Remote store mode: the Plow kiosk store's cards URL, written by `bootstrap.sh --pair`. `/api/message` is served from a 60 s poll of it (write-through to `data/messages.json` for last-good), `POST /api/message` answers 405, the server binds loopback only, and no banner CRUD mounts. `DASHBOARD_TOKEN` is then the kiosk read token. Blank = local mode, unchanged. |
-| `KIOSK_STATUS_URL` | no       | —        | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater from `~/ld-data/.env`, not by the viewer.                                                                                                                                                                                         |
-| `PINCH_DATA_FILE`  | no       | —        | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated).                                                                                                                                                                                       |
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `ICAL_URL` | no | — | Full private ICS URL. Secret. Blank → `/api/ical` answers 502 and the client shows its "Can't reach calendar" state; cards still render. |
+| `NEXT_N` | no | `12` | Max events displayed. **Baked at build time** — rebuild to change. |
+| `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
+| `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
+| `KIOSK_REMOTE_URL` | no | — | Remote store mode: the Plow kiosk store's cards URL, written by `bootstrap.sh --pair`. `/api/message` is served from a 60 s poll of it (write-through to `data/messages.json` for last-good), `POST /api/message` answers 405, the server binds loopback only, and no banner CRUD mounts. `DASHBOARD_TOKEN` is then the kiosk read token. Blank = local mode, unchanged. |
+| `KIOSK_STATUS_URL` | no | — | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater from `~/ld-data/.env`, not by the viewer. |
+| `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated). |
 
 ## Cook Tonight (optional)
 
@@ -128,7 +128,7 @@ and the card shows its `type` as the small uppercase label (`type: 'affirmation'
 shows "AFFIRMATION"); send `title: "Scores"` to override it; send `title: ""` to
 **hide the eyebrow entirely** (reclaims the vertical space — e.g. alert /
 affirmation / sports run title-less). **The message's `text` is the
-renderable payload**: a _self-contained_ HTML fragment the viewer drops into the
+renderable payload**: a *self-contained* HTML fragment the viewer drops into the
 card body verbatim (`dangerouslySetInnerHTML`) — it carries its **own `<style>`
 block**, so all widget-specific styling lives in the producer's HTML, not the
 viewer. The viewer has **no per-type rendering code and no per-widget CSS** —

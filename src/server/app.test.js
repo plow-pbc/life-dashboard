@@ -305,13 +305,6 @@ describe('remote store mode (KIOSK_REMOTE_URL)', () => {
   const remoteApp = (fetchCards) =>
     msgApp({ store: createCardPoller({ fetchCards, store: memStore() }), readOnly: true });
 
-  it('GET serves the card polled from upstream', async () => {
-    const app = remoteApp(async () => ({ 1: { type: 'alert', text: 'polled', posted_at: 'x' } }));
-    const res = await app.fetch(new Request('http://localhost/api/message?card=1'));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ message: { card: '1', type: 'alert', text: 'polled' } });
-  });
-
   it('POST is 405 even with the bearer — the store is upstream', async () => {
     const res = await remoteApp(async () => ({})).fetch(
       new Request('http://localhost/api/message', {

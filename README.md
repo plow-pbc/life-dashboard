@@ -18,7 +18,7 @@ checklist — is [`docs/runbook.md`](docs/runbook.md); the sections below and
 
 Each household deploys from its **own copy** of this template. A public
 fork is the simplest shape — the Pi then fetches with no credential at all —
-and it is safe because the repo holds the _frame_, never the data (see
+and it is safe because the repo holds the *frame*, never the data (see
 Privacy below). What public costs is the commit stream: household commits and
 diffs are world-readable, so household code and commit messages must stay
 free of personal detail (the agent's skill enforces this as a hard rule). A
@@ -59,13 +59,9 @@ curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/update
 `~/ld-data/.env` — `KIOSK_REMOTE_URL`, `KIOSK_STATUS_URL`, and
 `DASHBOARD_TOKEN` holding the kiosk's read token, mode 600 — then proceeds
 exactly as the fork mode below. An `.env` that already holds
-`KIOSK_REMOTE_URL` skips the pair. With `KIOSK_REMOTE_URL` set the viewer
-serves `/api/message` from a 60-second poll of the kiosk store (last-good
-stays on the wall through a Plow outage), `POST /api/message` answers 405, the
-server stays loopback-only, and the updater ends every run with `PUT
-$KIOSK_STATUS_URL {sha, deployed_at, last_result}` — the agent's no-SSH
-diagnosis surface (`updater/README.md`). Texted photos are not available in
-this mode yet.
+`KIOSK_REMOTE_URL` skips the pair. What remote store mode changes about the
+viewer and updater's behavior is documented in `.env.example` and
+[`docs/app-notes.md` § Configuration](docs/app-notes.md#configuration).
 
 ### Household fork (LAN or tailnet producers)
 
@@ -112,7 +108,7 @@ shows "Can't reach calendar".
   → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
   `~/ld-releases/state/last-result.json`.
 - **SSH is for diagnosis and repair** (journal reads, `systemctl --user
-restart life-dashboard-viewer`, updater state, fixing live state) — never
+  restart life-dashboard-viewer`, updater state, fixing live state) — never
   the deploy path: viewer-code changes ride the push, not the shell.
 
 ## Privacy
