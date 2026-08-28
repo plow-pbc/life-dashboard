@@ -84,10 +84,6 @@ export function createApp({
     if (!bearerOk(c)) return c.text('unauthorized', 401);
     await next();
   };
-  // Single wildcard covers every path including /banners/* and the SPA mounts
-  // server.js registers on this app instance after createApp returns.
-  app.use('*', remoteGuard);
-
   // Tiles are producer HTML the viewer renders verbatim, so the page-level CSP
   // is what keeps a bearer-authenticated write from becoming script on the
   // kiosk or a channel off-box: inline <style> is the tile contract; inline
@@ -100,6 +96,10 @@ export function createApp({
         "connect-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
     );
   });
+
+  // Single wildcard covers every path including /banners/* and the SPA mounts
+  // server.js registers on this app instance after createApp returns.
+  app.use('*', remoteGuard);
 
   // /api/version: the agent's deploy-verification surface.
   app.get('/api/version', (c) =>

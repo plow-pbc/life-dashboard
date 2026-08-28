@@ -349,12 +349,17 @@ describe('remote (non-loopback) access', () => {
     expect(res.status).toBe(401);
   });
 
-  it('sets the tile-containment CSP on every response', async () => {
-    const res = await msgApp({}).fetch(new Request('http://localhost/api/version'));
-    const csp = res.headers.get('content-security-policy');
+  it('sets the tile-containment CSP on every response, guard rejections included', async () => {
+    const ok = await msgApp({}).fetch(new Request('http://localhost/api/version'));
+    const csp = ok.headers.get('content-security-policy');
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("connect-src 'self'");
     expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    const denied = await msgApp({ remote: '100.64.0.7' }).fetch(
+      new Request('http://pi-host/api/ical'),
+    );
+    expect(denied.status).toBe(403);
+    expect(denied.headers.get('content-security-policy')).toBe(csp);
   });
 
   it('rejects POST without bearer with 401', async () => {
