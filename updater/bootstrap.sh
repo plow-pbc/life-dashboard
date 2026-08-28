@@ -44,6 +44,7 @@ git -C "$HOME/ld-releases/bootstrap" rev-parse HEAD >/dev/null 2>&1 || {
   git clone "$REPO_URL" "$HOME/ld-releases/bootstrap"
 }
 [ -L "$HOME/ld-current" ] || ln -s "$HOME/ld-releases/bootstrap" "$HOME/ld-current"
+[ -d "$HOME/ld-current/" ] || fail "ld-current is a broken symlink — its target release is gone; rm it and re-run"
 
 # The live release must be runnable: the updater binary runs from ld-current,
 # and the viewer serves from its dist/. On a first run that IS the bootstrap
