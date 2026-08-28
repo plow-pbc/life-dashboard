@@ -55,7 +55,10 @@ export function createApp({
   // Allowed hosts are loopback plus this machine's own hostname (derived from
   // os.hostname()), so a kiosk reaches its own /api and /banners with no
   // per-host edit.
-  const sha256 = (s) => createHash('sha256').update(s ?? '').digest();
+  const sha256 = (s) =>
+    createHash('sha256')
+      .update(s ?? '')
+      .digest();
   // Constant-time over digests: length-independent and no early-exit on prefix match.
   const bearerOk = (c) =>
     Boolean(messageToken) &&
@@ -121,7 +124,8 @@ export function createApp({
       cached = { body, fetchedAt: t };
       return c.body(body, 200, { 'content-type': 'text/calendar; charset=utf-8' });
     } catch {
-      if (cached) return c.body(cached.body, 200, { 'content-type': 'text/calendar; charset=utf-8' });
+      if (cached)
+        return c.body(cached.body, 200, { 'content-type': 'text/calendar; charset=utf-8' });
       return c.text('Upstream unreachable', 502);
     }
   });
@@ -181,20 +185,24 @@ export function createApp({
   // curated `s2_*` family photos. Image processing lives in bannerStore.
   if (messageToken && bannerStore) {
     const tooBig = (c) => c.text('image too large', 413);
-    app.post('/api/banners', bodyLimit({ maxSize: MAX_REQUEST_BYTES, onError: tooBig }), async (c) => {
-      if (!bearerOk(c)) return c.text('unauthorized', 401);
-      const body = await c.req.json().catch(() => null);
-      const filename = typeof body?.filename === 'string' ? body.filename : '';
-      const data = typeof body?.data === 'string' ? body.data : '';
-      if (!data) return c.text('data (base64 image) required', 400);
-      // bodyLimit already capped the request, so the decoded buffer is bounded.
-      const buffer = Buffer.from(data, 'base64');
-      try {
-        return c.json(await bannerStore.save({ filename, buffer }));
-      } catch (e) {
-        return c.text(e.message || 'error', e.status || 500);
-      }
-    });
+    app.post(
+      '/api/banners',
+      bodyLimit({ maxSize: MAX_REQUEST_BYTES, onError: tooBig }),
+      async (c) => {
+        if (!bearerOk(c)) return c.text('unauthorized', 401);
+        const body = await c.req.json().catch(() => null);
+        const filename = typeof body?.filename === 'string' ? body.filename : '';
+        const data = typeof body?.data === 'string' ? body.data : '';
+        if (!data) return c.text('data (base64 image) required', 400);
+        // bodyLimit already capped the request, so the decoded buffer is bounded.
+        const buffer = Buffer.from(data, 'base64');
+        try {
+          return c.json(await bannerStore.save({ filename, buffer }));
+        } catch (e) {
+          return c.text(e.message || 'error', e.status || 500);
+        }
+      },
+    );
     app.delete('/api/banners', async (c) => {
       if (!bearerOk(c)) return c.text('unauthorized', 401);
       return c.json(await bannerStore.clear());

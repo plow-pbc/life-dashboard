@@ -175,7 +175,9 @@ export async function run(deps = {}) {
   const finish = async (code, result) => {
     const record = { at: now().toISOString(), ok: code === 0, ...result };
     await writeFile(join(stateDir, 'last-result.json'), JSON.stringify(record, null, 2) + '\n');
-    log(`updater: ${result.action} (${result.sha ?? 'no sha'})${result.detail ? ` — ${result.detail}` : ''}`);
+    log(
+      `updater: ${result.action} (${result.sha ?? 'no sha'})${result.detail ? ` — ${result.detail}` : ''}`,
+    );
     await reportStatus(record);
     return code;
   };
@@ -220,7 +222,12 @@ export async function run(deps = {}) {
     if (existsSync(source)) await symlink(source, join(releaseDir, name));
   }
 
-  for (const argv of [['git', 'checkout', sha], ['npm', 'ci'], ['npm', 'run', 'build'], ['npm', 'test']]) {
+  for (const argv of [
+    ['git', 'checkout', sha],
+    ['npm', 'ci'],
+    ['npm', 'run', 'build'],
+    ['npm', 'test'],
+  ]) {
     const res = await exec(argv, { cwd: releaseDir });
     if (res.code !== 0)
       return fail('build-failed', `${argv.join(' ')}: ${tail(res.stderr || res.stdout)}`);
