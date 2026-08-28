@@ -70,8 +70,9 @@ template/main && git push` (the updater deploys the merge like any other push).
   (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
   → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
   `~/ld-releases/state/last-result.json`.
-- **SSH is for diagnostics only** (journal reads, `systemctl --user restart
-  life-dashboard-viewer`, updater state) — never the deploy path.
+- **SSH is for diagnosis and repair** (journal reads, `systemctl --user
+  restart life-dashboard-viewer`, updater state, fixing live state) — never
+  the deploy path: viewer-code changes ride the push, not the shell.
 
 ## Privacy
 

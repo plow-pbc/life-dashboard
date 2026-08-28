@@ -56,7 +56,8 @@ ssh-keygen -t ed25519 -N '' -C 'dashboard deploy'      -f "$AGENT_STATE/ld-dev/s
 ssh-keygen -t ed25519 -N '' -C 'dashboard diagnostics' -f "$AGENT_STATE/ld-dev/ssh/pi_key"
 chmod 600 "$AGENT_STATE"/ld-dev/ssh/deploy_key "$AGENT_STATE"/ld-dev/ssh/pi_key
 printf 'git@github.com:<you>/life-dashboard-<household>.git\n' > "$AGENT_STATE/ld-dev/repo-url"
-gh api meta --jq '.ssh_keys[]' | sed 's/^/github.com /' > "$AGENT_STATE/ld-dev/ssh/known_hosts"
+gh api meta --jq '.ssh_keys[]' | sed 's/^/github.com /' > "$AGENT_STATE/ld-dev/ssh/known_hosts.new" \
+  && mv "$AGENT_STATE/ld-dev/ssh/known_hosts.new" "$AGENT_STATE/ld-dev/ssh/known_hosts"
 ```
 
 The `known_hosts` line pins GitHub's published SSH host keys so every
@@ -95,14 +96,12 @@ fork = anonymous fetch).
 
 ## 4. Teach the agent
 
-The agent needs to know: the workspace path, that `repo-url` + `deploy_key`
-are how it clones and pushes (SSH via `GIT_SSH_COMMAND`, strict host
-checking against the pinned `known_hosts`), that
-`pi_key` is for diagnosis and repair — never for deploying by editing files
-on the Pi — and the two hard rules: **success is only a live SHA match** on
-`GET /api/version` (bearer-authenticated off-box), and **no personal data in
-the public repo**. A worked example of this skill lives in the operator's
-agent repo; the contract it encodes is this section.
+The deploy contract the agent follows is owned by
+[`README.md` § The agent's deploy contract](../README.md) — one copy, not
+two. What this runbook adds are the two hard rules: **success is only a live
+SHA match** on `GET /api/version` (bearer-authenticated off-box), and **no
+personal data in the public repo**. A worked example of an agent skill
+encoding both lives in the operator's agent repo.
 
 ## 5. Prove the loop end to end
 
@@ -126,7 +125,7 @@ is a hypothesis.
 | Symptom | First read |
 |---|---|
 | Push rejected `Permission denied (publickey)` | deploy key missing/revoked — re-register; never substitute another credential |
-| `Host key verification failed` | GitHub rotated its SSH host keys (or `known_hosts` is missing) — re-mint it with the `gh api meta` line from § 2; never weaken host checking |
+| `Host key verification failed` | GitHub rotated its SSH host keys (or `known_hosts` is missing) — re-mint it with the atomic `gh api meta` recipe from § 2 (write to `.new`, rename on success); never weaken host checking |
 | Pushed SHA never goes live | `ssh <pi-user>@<pi> 'cat ~/ld-releases/state/last-result.json'` — build failure retries next tick; a rollback pins the SHA until a new push |
 | `/api/version` 401 off-box | request lacks the `DASHBOARD_TOKEN` bearer |
 | `journalctl --user -u …` shows nothing | Pis often keep no per-user journals — use `journalctl _SYSTEMD_USER_UNIT=life-dashboard-viewer.service` |
