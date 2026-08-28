@@ -17,7 +17,7 @@ plow-pbc/life-dashboard              the public TEMPLATE (this repo)
      │ write deploy key   ▼
      │                 Pi updater — builds, health-checks,
      │                 flips atomically, rolls back
-  the agent ···· diagnostics-only SSH ····►  Pi
+  the agent ···· diagnostic/repair SSH ····►  Pi
   (source of the deploy-key push above)
 ```
 
@@ -69,7 +69,12 @@ gh repo deploy-key add "$AGENT_STATE/ld-dev/ssh/deploy_key.pub" \
   --repo <you>/life-dashboard-<household> --title 'dashboard agent (write)' --allow-write
 ```
 
-Authorize the diagnostics key on the Pi (restricted, idempotent):
+Authorize the diagnostics key on the Pi (idempotent; the options only block
+tunneling/forwarding — **the key deliberately grants a full user-level shell**,
+because the agent's mandate includes open-ended diagnosis and repair, and the
+guardrail is recoverability, not a command allowlist; scope it down with a
+`restrict,command=` forced-command wrapper only if your household wants a
+narrower agent):
 
 ```sh
 PUB=$(cat "$AGENT_STATE/ld-dev/ssh/pi_key.pub")
