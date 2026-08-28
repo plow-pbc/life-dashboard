@@ -98,6 +98,8 @@ app.get('*', serveStatic({ path: './dist/index.html' }));
 // without a token there is no remote surface, so keep the loopback-only bind.
 const HOST = remoteWritesEnabled ? '0.0.0.0' : '127.0.0.1';
 
-serve({ fetch: app.fetch, port: 5174, hostname: HOST }, (info) => {
+// PORT override exists for the updater's pre-flip probe boot (:5199); the
+// real viewer always runs on the default.
+serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 5174), hostname: HOST }, (info) => {
   console.log(`life-dashboard-viewer listening on http://localhost:${info.port}`);
 });

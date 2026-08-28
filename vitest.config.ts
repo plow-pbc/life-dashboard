@@ -13,6 +13,7 @@ export default defineConfig({
       'src/**/*.test.js',
       'test/**/*.test.ts',
       'api/**/*.test.ts',
+      'updater/**/*.test.mjs',
     ],
   },
 });
