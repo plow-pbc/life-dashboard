@@ -13,8 +13,8 @@ function memStore(initial = {}) {
 }
 
 const upstream = {
-  '1': { type: 'alert', text: 'polled', title: '', posted_at: '2026-08-28T00:00:00Z' },
-  '3': { type: 'weather', text: '<div>72°</div>', title: null, posted_at: '2026-08-28T00:00:00Z' },
+  1: { type: 'alert', text: 'polled', title: '', posted_at: '2026-08-28T00:00:00Z' },
+  3: { type: 'weather', text: '<div>72°</div>', title: null, posted_at: '2026-08-28T00:00:00Z' },
 };
 
 describe('createCardPoller', () => {
@@ -40,8 +40,8 @@ describe('createCardPoller', () => {
     let t = 1_000_000;
     const fetchCards = vi
       .fn()
-      .mockResolvedValueOnce({ '1': { type: 'alert', text: 'first' } })
-      .mockResolvedValueOnce({ '1': { type: 'alert', text: 'second' } });
+      .mockResolvedValueOnce({ 1: { type: 'alert', text: 'first' } })
+      .mockResolvedValueOnce({ 1: { type: 'alert', text: 'second' } });
     const poller = createCardPoller({ fetchCards, store: memStore(), ttlMs: 60_000, now: () => t });
     await poller.get('1');
     t += 30_000;
@@ -55,10 +55,16 @@ describe('createCardPoller', () => {
     const fetchCards = vi
       .fn()
       .mockRejectedValueOnce(new Error('remote store HTTP 503'))
-      .mockResolvedValueOnce({ '1': { type: 'alert', text: 'good' } })
+      .mockResolvedValueOnce({ 1: { type: 'alert', text: 'good' } })
       .mockRejectedValueOnce(new Error('remote store HTTP 502'));
     const log = vi.fn();
-    const poller = createCardPoller({ fetchCards, store: memStore(), ttlMs: 60_000, now: () => t, log });
+    const poller = createCardPoller({
+      fetchCards,
+      store: memStore(),
+      ttlMs: 60_000,
+      now: () => t,
+      log,
+    });
     expect(await poller.get('1')).toBeNull();
     t += 61_000;
     expect((await poller.get('1')).text).toBe('good');
@@ -70,7 +76,13 @@ describe('createCardPoller', () => {
   it('last-good is the on-disk store: a fresh poller over the same store serves it before any fetch succeeds', async () => {
     const store = memStore();
     await createCardPoller({ fetchCards: async () => upstream, store }).get('1');
-    const cold = createCardPoller({ fetchCards: async () => { throw new Error('down'); }, store, log: () => {} });
+    const cold = createCardPoller({
+      fetchCards: async () => {
+        throw new Error('down');
+      },
+      store,
+      log: () => {},
+    });
     expect((await cold.get('1')).text).toBe('polled');
   });
 });
