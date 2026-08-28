@@ -49,6 +49,7 @@ updater timer), and starts them. The equivalent by hand, for reference:
 
 ```sh
 loginctl enable-linger $USER   # FIRST: without lingering, --user units silently stop with the login session
+mkdir -p ~/ld-releases ~/.config/systemd/user
 git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
