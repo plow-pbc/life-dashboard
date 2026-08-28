@@ -3,8 +3,10 @@ Description=Life Dashboard Viewer (calendar kiosk app + ICS proxy)
 
 [Service]
 Type=simple
-WorkingDirectory=%h/services/life-dashboard-viewer
-ExecStart=/usr/bin/node --env-file=%h/services/life-dashboard-viewer/.env %h/services/life-dashboard-viewer/server.js
+# The updater flips %h/ld-current between release dirs; .env is a symlink the
+# updater plants in each release (source of truth: %h/ld-data/.env).
+WorkingDirectory=%h/ld-current
+ExecStart=/usr/bin/node --env-file=%h/ld-current/.env %h/ld-current/server.js
 Restart=on-failure
 RestartSec=10
 

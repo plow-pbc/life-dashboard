@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Life Dashboard updater every 2 minutes
+
+[Timer]
+OnUnitActiveSec=2min
+OnBootSec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
