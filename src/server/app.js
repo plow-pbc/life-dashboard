@@ -75,15 +75,31 @@ export function createApp({
   const isProducerWrite = (c) =>
     (c.req.path === '/api/message' && c.req.method === 'POST') ||
     (c.req.path === '/api/banners' && (c.req.method === 'POST' || c.req.method === 'DELETE'));
+  // The deploy-verification read: the agent that pushed a release confirms the
+  // SHA went live from off-box, with the same household bearer the writes use.
+  const isVersionRead = (c) => c.req.path === '/api/version' && c.req.method === 'GET';
   const remoteGuard = async (c, next) => {
     if (LOOPBACK.has(getRemote(c))) return hostGuard(c, next);
-    if (!isProducerWrite(c)) return c.text('forbidden', 403);
+    if (!isProducerWrite(c) && !isVersionRead(c)) return c.text('forbidden', 403);
     if (!bearerOk(c)) return c.text('unauthorized', 401);
     await next();
   };
   // Single wildcard covers every path including /banners/* and the SPA mounts
   // server.js registers on this app instance after createApp returns.
   app.use('*', remoteGuard);
+
+  // Tiles are producer HTML the viewer renders verbatim, so the page-level CSP
+  // is what keeps a bearer-authenticated write from becoming script on the
+  // kiosk or a channel off-box: inline <style> is the tile contract; inline
+  // script, event handlers, and non-self fetches/images are not.
+  app.use('*', async (c, next) => {
+    await next();
+    c.header(
+      'Content-Security-Policy',
+      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+        "connect-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+    );
+  });
 
   // /api/version: the agent's deploy-verification surface.
   app.get('/api/version', (c) =>

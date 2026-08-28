@@ -334,6 +334,29 @@ describe('remote (non-loopback) access', () => {
     expect(res.status).toBe(403);
   });
 
+  it('allows GET /api/version with bearer — the deploy-verification read', async () => {
+    const res = await msgApp({ remote: '100.64.0.7' }).fetch(
+      new Request('http://pi-host/api/version', { headers: auth() }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sha: null, deployedAt: null });
+  });
+
+  it('rejects GET /api/version without bearer with 401', async () => {
+    const res = await msgApp({ remote: '100.64.0.7' }).fetch(
+      new Request('http://pi-host/api/version'),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('sets the tile-containment CSP on every response', async () => {
+    const res = await msgApp({}).fetch(new Request('http://localhost/api/version'));
+    const csp = res.headers.get('content-security-policy');
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+  });
+
   it('rejects POST without bearer with 401', async () => {
     const res = await msgApp({ remote: '192.168.1.50' }).fetch(
       new Request('http://pi-host/api/message', {
