@@ -58,8 +58,10 @@ template/main && git push` (the updater deploys the merge like any other push).
    rm -rf "$SCRATCH"
    ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
-   (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
-   APIs and the off-box `/api/version` verification read;
+   (`ICAL_URL` feeds the wall's own calendar tile and may be left blank — a
+   household whose calendar arrives as agent-posted cards needs no ICS feed,
+   and the tile then renders empty; `DASHBOARD_TOKEN` enables the remote
+   message/photo APIs and the off-box `/api/version` verification read;
    `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
    they are never in any repo. Then `systemctl --user restart
    life-dashboard-viewer`.

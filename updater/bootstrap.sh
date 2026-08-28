@@ -8,7 +8,7 @@
 # bootstrap copy), as the kiosk user, no sudo — every unit is systemd --user.
 # Prerequisites it CHECKS but does not install (they need apt/sudo):
 # /usr/bin/node >= 20.6 and /usr/bin/chromium — README § Bring-up step 1.
-# After it finishes: write ~/ld-data/.env (ICAL_URL at minimum), then
+# After it finishes: write ~/ld-data/.env (all keys optional; see
 # `systemctl --user restart life-dashboard-viewer`.
 set -eu
 
@@ -32,7 +32,7 @@ mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
 [ -f "$HOME/ld-data/.env" ] || {
   printf 'ICAL_URL=\n' > "$HOME/ld-data/.env"
   chmod 600 "$HOME/ld-data/.env"
-  echo "bootstrap: wrote empty ~/ld-data/.env — fill in ICAL_URL (see .env.example)"
+  echo "bootstrap: wrote empty ~/ld-data/.env — see .env.example for the optional keys"
 }
 
 # -- bootstrap release + the ld-current symlink the units run from -------------

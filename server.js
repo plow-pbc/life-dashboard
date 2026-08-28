@@ -13,11 +13,11 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
+// Optional. A household whose calendar reaches the wall as agent-posted cards
+// has no ICS feed to name, and this used to exit(1) — forcing it to invent a
+// secret nothing then read. Absent is the same shape as a missing ./banners/
+// folder below: a valid deploy with that one tile empty.
 const ICAL_URL = process.env.ICAL_URL;
-if (!ICAL_URL) {
-  console.error('FATAL: ICAL_URL is required (set it in .env)');
-  process.exit(1);
-}
 
 const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN;
 // One switch gates the whole remote-write surface (message API + banner CRUD)
@@ -57,11 +57,13 @@ try {
 }
 
 const app = createApp({
-  fetchUpstream: async () => {
-    const res = await fetch(ICAL_URL, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) throw new Error(`Upstream returned HTTP ${res.status}`);
-    return await res.text();
-  },
+  fetchUpstream: ICAL_URL
+    ? async () => {
+        const res = await fetch(ICAL_URL, { signal: AbortSignal.timeout(10_000) });
+        if (!res.ok) throw new Error(`Upstream returned HTTP ${res.status}`);
+        return await res.text();
+      }
+    : null,
   listBanners: async () => {
     let entries;
     try {

@@ -12,12 +12,18 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 // in a JSON envelope; hono's bodyLimit caps the whole request (a missing/lying
 // Content-Length can't force unbounded buffering — it counts bytes as it reads)
 // so the decoded buffer can never exceed MAX_IMAGE_BYTES.
+const EMPTY_ICS =
+  'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//life-dashboard//no calendar configured//EN\r\nEND:VCALENDAR\r\n';
+
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15 MB decoded
 const MAX_B64_CHARS = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 1024; // ~4/3 + slack
 const MAX_REQUEST_BYTES = MAX_B64_CHARS + 4096; // + the small JSON envelope
 
 export function createApp({
-  fetchUpstream,
+  // The ICS proxy's upstream, or null when no calendar feed is configured --
+  // /api/ical then serves an empty calendar rather than 502, so the tile
+  // renders as an empty day instead of an error the wall cannot clear.
+  fetchUpstream = null,
   listBanners,
   bannerStore,
   messageStore,
@@ -109,6 +115,13 @@ export function createApp({
   // /api/ical: proxies the upstream ICS with a single-slot 60s cache (stale-on-error).
   let cached = null;
   app.get('/api/ical', async (c) => {
+    // No upstream is "no calendar feed configured", not a failure: answer with
+    // a well-formed empty VCALENDAR so the client's parser yields zero events.
+    // A 502 here would be indistinguishable from a feed that is down, and the
+    // wall would show an error state nobody can act on.
+    if (!fetchUpstream) {
+      return c.body(EMPTY_ICS, 200, { 'content-type': 'text/calendar; charset=utf-8' });
+    }
     const t = now();
     if (cached && t - cached.fetchedAt < ttlMs) {
       return c.body(cached.body, 200, { 'content-type': 'text/calendar; charset=utf-8' });

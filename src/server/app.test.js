@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createApp } from './app.js';
+import { parseICS } from '../ical';
 
 function appWith(fetcher, opts = {}) {
   return createApp({
@@ -542,4 +543,26 @@ describe('/api/pinch mounting', () => {
     expect(res.status).toBe(403);
   });
 
+});
+
+describe('no calendar feed configured', () => {
+  it('serves an empty calendar rather than 502 when there is no upstream', async () => {
+    // A household whose calendar reaches the wall as agent-posted cards names
+    // no ICS feed. 502 would be the same answer as a feed that is down, and the
+    // wall would sit on an error state nobody can clear.
+    const app = createApp({ listBanners: async () => [], getRemote: () => '127.0.0.1' });
+    const res = await app.request('/api/ical');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/text\/calendar/);
+    const body = await res.text();
+    expect(body).toContain('BEGIN:VCALENDAR');
+    expect(body).toContain('END:VCALENDAR');
+    expect(body).not.toContain('BEGIN:VEVENT');
+  });
+
+  it('parses to zero events, so the tile renders empty instead of erroring', async () => {
+    const app = createApp({ listBanners: async () => [], getRemote: () => '127.0.0.1' });
+    const body = await (await app.request('/api/ical')).text();
+    expect(parseICS(body, new Date('2026-08-28T12:00:00Z'), 12)).toEqual([]);
+  });
 });
