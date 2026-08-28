@@ -16,11 +16,19 @@ household's Pi message API, below; in paired mode (no fork) the Pi binds
 loopback only, so producers instead `POST /v1/kiosks/{uid}/cards` on Plow,
 which the Pi's own poll of `KIOSK_REMOTE_URL` picks up:
 
-    POST <DASHBOARD_ENDPOINT_URL>          # the full .../api/message URL, verbatim
-    Authorization: Bearer <DASHBOARD_TOKEN>
+    # local/fork mode: the Pi's own message API
+    POST http://<pi>:5174/api/message
+    Authorization: Bearer <DASHBOARD_TOKEN>          # the Pi's token
+    Content-Type: application/json
+
+    # paired mode: the agent's Plow kiosk-store endpoint, not the Pi
+    POST https://api.plow.co/v1/kiosks/<uid>/cards
+    Authorization: Bearer <PLOW_BEARER_TOKEN>        # the agent's Plow token, not DASHBOARD_TOKEN
     Content-Type: application/json
 
     { "card": "<1-5>", "type": "<type>", "text": "<body>", "title": "<optional>" }
+
+The JSON body is identical in both modes.
 
 - `card`, `type`, `text` are REQUIRED. `title` is OPTIONAL.
 - The store is **latest-post-per-card-wins**: re-posting a card replaces it.

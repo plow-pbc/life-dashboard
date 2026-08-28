@@ -69,7 +69,9 @@ Plow posts messages from the `ld-*` bundles (in the `plow-pbc/seed-life-dashboar
 repo, under `ref/team-skills/`; rendered-card text is capped producer-side — see the
 `SKILL.md` bundles there — sized to this app's `--t-card`/line-clamp budget) directly
 to this server's `/api/message`
-endpoint. Storage is a file-backed
+endpoint — local/fork mode only. In paired mode producers instead POST to the
+Plow kiosk-store endpoint (`docs/kiosk-protocol.md`); this server polls it via
+`KIOSK_REMOTE_URL` and `/api/message` here answers 405. Storage is a file-backed
 JSON store (`data/messages.json`) keyed by **card number**: each POST writes
 the latest message for its card slot, so a chatty producer can never evict
 another card's content. The kiosk browser fetches `/api/message?card=N` from
@@ -149,7 +151,8 @@ There is no expiry: the latest post per card stays on screen until a newer one
 for the same card lands. **To clear a card, post a newer message to that card**
 (e.g. empty-state wording), since nothing expires on its own.
 
-To enable:
+To enable (local/fork mode; paired mode instead sets `KIOSK_REMOTE_URL` via
+`bootstrap.sh --pair` and producers POST to Plow — see `docs/kiosk-protocol.md`):
 
 1. **Generate a token:** `openssl rand -hex 32`. Set `DASHBOARD_TOKEN=<token>` in `.env` on the Pi, then restart `life-dashboard-viewer.service`. The server will bind `0.0.0.0:5174` and register `/api/message`.
 2. **Configure producers** (e.g. Plow on the Mac) to POST `{"card","type","text"}` with `Authorization: Bearer <token>` to `http://<pi-tailscale-hostname>:5174/api/message`. Default to a Tailscale hostname — the bearer is then WireGuard-encrypted on the wire. A raw LAN hostname/IP works as a trusted-household fallback, with the bearer transiting in plaintext. The remote surface is write-only except `GET /api/version` (bearer-gated, for deploy verification): every other GET is loopback-only (the kiosk).
