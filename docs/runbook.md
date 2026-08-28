@@ -121,6 +121,7 @@ is a hypothesis.
 | Symptom | First read |
 |---|---|
 | Push rejected `Permission denied (publickey)` | deploy key missing/revoked — re-register; never substitute another credential |
+| `Host key verification failed` | GitHub rotated its SSH host keys (or `known_hosts` is missing) — re-mint it with the `gh api meta` line from § 2; never weaken host checking |
 | Pushed SHA never goes live | `ssh <pi-user>@<pi> 'cat ~/ld-releases/state/last-result.json'` — build failure retries next tick; a rollback pins the SHA until a new push |
 | `/api/version` 401 off-box | request lacks the `DASHBOARD_TOKEN` bearer |
 | `journalctl --user -u …` shows nothing | Pis often keep no per-user journals — use `journalctl _SYSTEMD_USER_UNIT=life-dashboard-viewer.service` |
