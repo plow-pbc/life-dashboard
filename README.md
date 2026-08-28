@@ -65,7 +65,14 @@ template/main && git push` (the updater deploys the merge like any other push).
 ## The agent's deploy contract
 
 - **Push to the household repo's `main` = deploy.** The updater fetches within
-  2 minutes, builds, tests, health-checks, and flips atomically.
+  2 minutes, builds, tests, health-checks, and flips atomically. Every
+  git-over-ssh run binds the provisioned credentials explicitly — never the
+  default identity or trust state:
+
+  ```sh
+  GIT_SSH_COMMAND='ssh -i <state>/ld-dev/ssh/deploy_key -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
+  ```
 - **Verify via `GET /api/version`** with the household bearer
   (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
   → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
