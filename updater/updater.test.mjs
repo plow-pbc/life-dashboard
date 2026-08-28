@@ -210,4 +210,41 @@ describe('updater', () => {
     await run(deps([], { remoteSha: 'newsha1' }, calls));
     expect(calls.some((c) => c.url.startsWith('https://'))).toBe(false);
   });
+
+  it('a status PUT that never resolves does not hang the run past its timeout', async () => {
+    await writeEnv();
+    const inner = makeFetch({ liveSha: 'newsha1' });
+    // Simulates a blackholed KIOSK_STATUS_URL: the promise never settles on
+    // its own — only AbortSignal.timeout firing resolves it, same as a real
+    // hung TCP connection would.
+    const hangingFetch = (url, init) => {
+      if (!url.startsWith('https://')) return inner(url, init);
+      return new Promise((_, reject) => {
+        init.signal.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    };
+    const code = await run({
+      ...deps([], { remoteSha: 'newsha1', net: { liveSha: 'newsha1' } }),
+      fetch: hangingFetch,
+      statusTimeoutMs: 5, // real ms, but tiny — no 10 s test sleep
+    });
+    // The deploy itself succeeds; only the status report timed out and was logged.
+    expect(code).toBe(0);
+    expect(await readlink(current)).toBe(join(releases, 'newsha1'));
+  });
+
+  it('a corrupt version.json fails the status report loudly instead of reporting sha: null', async () => {
+    await writeEnv();
+    // Live release already flipped with a bad stamp on disk (simulates a
+    // torn write); the noop tick should still try to report and fail loudly.
+    await writeFile(join(releases, 'oldsha0', 'version.json'), '{not json');
+    const calls = [];
+    const code = await run(deps([], { remoteSha: 'oldsha0' }, calls));
+    expect(code).toBe(0); // the noop action itself still succeeds
+    expect(statusPut(calls)).toBeUndefined(); // reportStatus threw before the PUT
+  });
 });

@@ -1,13 +1,11 @@
-// Remote store mode (KIOSK_REMOTE_URL): the message store is upstream in the
-// Plow kiosk store, and this poller is the viewer's read-only view of it. It
-// wraps the on-disk store so last-good survives a Plow outage or a reboot,
-// and it fetches at most once per ttl — on demand, coalesced across the five
-// concurrent card reads a page load makes — so a busy wall never storms
-// upstream. A failed fetch counts against the ttl too (no retry storm).
+// Remote store mode (KIOSK_REMOTE_URL): last-good on-disk view of the
+// upstream Plow kiosk store, refreshed at most once per ttl.
+export const DEFAULT_TTL_MS = 60_000;
+
 export function createCardPoller({
   fetchCards,
   store,
-  ttlMs = 60_000,
+  ttlMs = DEFAULT_TTL_MS,
   now = Date.now,
   log = (m) => console.error(m),
 }) {

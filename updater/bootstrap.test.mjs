@@ -46,44 +46,51 @@ esac`,
   for (const name of ['npm', 'loginctl', 'systemctl', 'chromium']) await stub(name, 'exit 0');
 });
 
-const bootstrap = (...args) =>
-  run('sh', [SCRIPT, ...args], {
+const bootstrap = (...args) => {
+  const envOverrides = typeof args[args.length - 1] === 'object' ? args.pop() : {};
+  return run('sh', [SCRIPT, ...args], {
     env: {
       PATH: `${bin}:${process.env.PATH}`,
       HOME: home,
       USER: 'kiosk',
       LD_NODE: process.execPath,
       LD_CHROMIUM: join(bin, 'chromium'),
+      ...envOverrides,
     },
   });
+};
 
-const curlCalls = async () => (await readFile(curlLog, 'utf8').catch(() => '')).split('\n').filter(Boolean);
+const curlCalls = async () =>
+  (await readFile(curlLog, 'utf8').catch(() => '')).split('\n').filter(Boolean);
 
 describe('bootstrap.sh', () => {
-  it('--pair redeems the code once and writes ~/ld-data/.env (mode 600); a second run is idempotent', async () => {
-    await bootstrap('--pair', 'ABC123');
-    await bootstrap('--pair', 'ABC123');
-    expect(await readFile(envFile, 'utf8')).toBe(
-      'ICAL_URL=\n' +
-        'KIOSK_REMOTE_URL=https://api.plow.co/v1/kiosks/kio_1/cards\n' +
-        'KIOSK_STATUS_URL=https://api.plow.co/v1/kiosks/kio_1/status\n' +
-        'DASHBOARD_TOKEN=rt_secret\n',
-    );
-    expect((await stat(envFile)).mode & 0o077).toBe(0);
-    const calls = await curlCalls();
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain('https://api.plow.co/v1/kiosks/pair');
-    expect(calls[0]).toContain('"code":"ABC123"');
-    // The rest of the install happened: ld-current points at the bootstrap clone.
-    expect((await stat(join(home, 'ld-current', 'updater'))).isDirectory()).toBe(true);
-  });
-
-  it('honors PLOW_API_BASE', async () => {
-    await run('sh', [SCRIPT, '--pair', 'ABC123'], {
-      env: { PATH: `${bin}:${process.env.PATH}`, HOME: home, USER: 'kiosk', LD_NODE: process.execPath, LD_CHROMIUM: join(bin, 'chromium'), PLOW_API_BASE: 'http://localhost:8000' },
-    });
-    expect((await curlCalls())[0]).toContain('http://localhost:8000/v1/kiosks/pair');
-  });
+  it.each([
+    ['default PLOW_API_BASE', {}, 'https://api.plow.co/v1/kiosks/pair'],
+    [
+      'PLOW_API_BASE override',
+      { PLOW_API_BASE: 'http://localhost:8000' },
+      'http://localhost:8000/v1/kiosks/pair',
+    ],
+  ])(
+    '--pair redeems the code once and writes ~/ld-data/.env (mode 600); a second run is idempotent (%s)',
+    async (_name, envOverrides, wantPairUrl) => {
+      await bootstrap('--pair', 'ABC123', envOverrides);
+      await bootstrap('--pair', 'ABC123', envOverrides);
+      expect(await readFile(envFile, 'utf8')).toBe(
+        'ICAL_URL=\n' +
+          'KIOSK_REMOTE_URL=https://api.plow.co/v1/kiosks/kio_1/cards\n' +
+          'KIOSK_STATUS_URL=https://api.plow.co/v1/kiosks/kio_1/status\n' +
+          'DASHBOARD_TOKEN=rt_secret\n',
+      );
+      expect((await stat(envFile)).mode & 0o077).toBe(0);
+      const calls = await curlCalls();
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain(wantPairUrl);
+      expect(calls[0]).toContain('"code":"ABC123"');
+      // The rest of the install happened: ld-current points at the bootstrap clone.
+      expect((await stat(join(home, 'ld-current', 'updater'))).isDirectory()).toBe(true);
+    },
+  );
 
   it('without --pair writes the empty ICAL_URL .env and never calls the API (local mode, unchanged)', async () => {
     await bootstrap('https://github.com/you/life-dashboard-home.git');
@@ -107,5 +114,23 @@ describe('bootstrap.sh', () => {
       stderr: expect.stringContaining('without KIOSK_REMOTE_URL'),
     });
     expect(await curlCalls()).toHaveLength(0);
+  });
+
+  it('a .env with a blank KIOSK_REMOTE_URL is treated as un-paired, not silently skipped', async () => {
+    await mkdir(join(home, 'ld-data'), { recursive: true });
+    await writeFile(envFile, 'ICAL_URL=\nKIOSK_REMOTE_URL=\n');
+    await expect(bootstrap('--pair', 'ABC123')).rejects.toMatchObject({
+      stderr: expect.stringContaining('without KIOSK_REMOTE_URL'),
+    });
+    expect(await curlCalls()).toHaveLength(0);
+  });
+
+  it('a pairing code with non-alphanumeric characters is rejected before any curl call', async () => {
+    await expect(bootstrap('--pair', 'AB"123')).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('alphanumeric'),
+    });
+    expect(await curlCalls()).toHaveLength(0);
+    await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

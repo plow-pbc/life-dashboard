@@ -45,7 +45,7 @@ main() {
   # -- household state (never inside a release; survives every flip) -----------
   mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
   if [ -f "$HOME/ld-data/.env" ]; then
-    [ -z "$PAIR_CODE" ] || grep -q '^KIOSK_REMOTE_URL=' "$HOME/ld-data/.env" \
+    [ -z "$PAIR_CODE" ] || grep -q '^KIOSK_REMOTE_URL=.' "$HOME/ld-data/.env" \
       || fail "~/ld-data/.env exists without KIOSK_REMOTE_URL — move it aside to pair this Pi"
   elif [ -n "$PAIR_CODE" ]; then
     pair
@@ -106,9 +106,18 @@ fail() { echo "bootstrap: $1" >&2; exit 1; }
 # which curl -f turns into a non-zero exit). node writes the file so URL and
 # token bytes never pass through shell quoting; mode 600 from the first byte.
 pair() {
-  body=$(curl -fsS -X POST -H 'content-type: application/json' \
-    -d "{\"code\":\"$PAIR_CODE\"}" "$PLOW_API_BASE/v1/kiosks/pair") \
-    || fail "pairing failed — the code is used or expired; ask the agent for a fresh one"
+  case $PAIR_CODE in
+    ''|*[!A-Za-z0-9]*) fail "pairing code must be alphanumeric (6 characters, from the agent)" ;;
+  esac
+  # `if body=$(...)` (not `body=$(...) || ...`) so `set -e` doesn't exit the
+  # script before the failing exit status can be captured into $status.
+  if body=$(curl -fsS -X POST -H 'content-type: application/json' \
+    -d "{\"code\":\"$PAIR_CODE\"}" "$PLOW_API_BASE/v1/kiosks/pair"); then
+    :
+  else
+    status=$?
+    fail "pairing failed (curl exit $status) — a used/expired code, or this Pi cannot reach $PLOW_API_BASE"
+  fi
   printf '%s' "$body" | "$LD_NODE" -e '
     const fs = require("fs");
     const r = JSON.parse(fs.readFileSync(0, "utf8"));

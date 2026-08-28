@@ -125,6 +125,7 @@ export async function run(deps = {}) {
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     now = () => new Date(),
     log = (m) => console.log(m),
+    statusTimeoutMs = 10_000,
   } = deps;
 
   const releases = join(home, 'ld-releases');
@@ -141,8 +142,15 @@ export async function run(deps = {}) {
     if (!env.KIOSK_STATUS_URL) return;
     try {
       const live = await readlink(current);
+      // Only ENOENT means "no stamp yet" (a fresh bootstrap release, before
+      // the first flip) — same convention as server.js's version.json read:
+      // a present-but-corrupt stamp fails loudly instead of silently
+      // reporting a null sha.
       const stamp = JSON.parse(
-        await readFile(join(live, 'version.json'), 'utf8').catch(() => '{}'),
+        await readFile(join(live, 'version.json'), 'utf8').catch((err) => {
+          if (err.code === 'ENOENT') return '{}';
+          throw err;
+        }),
       );
       const res = await doFetch(env.KIOSK_STATUS_URL, {
         method: 'PUT',
@@ -151,6 +159,7 @@ export async function run(deps = {}) {
           'content-type': 'application/json',
         },
         redirect: 'error',
+        signal: AbortSignal.timeout(statusTimeoutMs),
         body: JSON.stringify({
           sha: stamp.sha ?? null,
           deployed_at: stamp.deployedAt ?? null,

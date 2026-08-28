@@ -4,7 +4,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './src/server/app.js';
 import { createFileStore } from './src/server/store.js';
-import { createCardPoller } from './src/server/remote.js';
+import { createCardPoller, DEFAULT_TTL_MS } from './src/server/remote.js';
 import { createBannerStore } from './src/server/banners.js';
 import { JsonStore } from './src/server/pinch/store.js';
 
@@ -83,7 +83,7 @@ const messageStore = remoteMode
     ? await createFileStore('./data/messages.json')
     : undefined;
 // Background tick keeps the wall warm between page loads; reads coalesce on it.
-if (remoteMode) setInterval(() => messageStore.refresh(), 60_000).unref();
+if (remoteMode) setInterval(() => messageStore.refresh(), DEFAULT_TTL_MS).unref();
 
 const app = createApp({
   fetchUpstream: async () => {
