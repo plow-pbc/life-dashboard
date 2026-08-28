@@ -51,6 +51,7 @@ template/main && git push` (the updater deploys the merge like any other push).
    SCRATCH=$(mktemp -d)
    git clone --depth 1 "$HOUSEHOLD" "$SCRATCH/repo"
    sh "$SCRATCH/repo/updater/bootstrap.sh" "$HOUSEHOLD"
+   rm -rf "$SCRATCH"
    ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
