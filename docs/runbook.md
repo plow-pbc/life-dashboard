@@ -98,8 +98,8 @@ fork = anonymous fetch).
 The agent needs to know: the workspace path, that `repo-url` + `deploy_key`
 are how it clones and pushes (SSH via `GIT_SSH_COMMAND`, strict host
 checking against the pinned `known_hosts`), that
-`pi_key` is for diagnostics only — never for deploying by editing files on
-the Pi — and the two hard rules: **success is only a live SHA match** on
+`pi_key` is for diagnosis and repair — never for deploying by editing files
+on the Pi — and the two hard rules: **success is only a live SHA match** on
 `GET /api/version` (bearer-authenticated off-box), and **no personal data in
 the public repo**. A worked example of this skill lives in the operator's
 agent repo; the contract it encodes is this section.
