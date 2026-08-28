@@ -65,6 +65,22 @@ const realSpawn = (argv, opts = {}) => {
 // carry the tail of whatever the failing step said.
 const tail = (s) => (s ?? '').trim().slice(-2000);
 
+// ~/ld-data/.env as bootstrap.sh writes it (plain KEY=value lines, optional
+// surrounding quotes); the updater has no --env-file and the file may not
+// exist on a by-hand install — then there is simply nothing to report to.
+async function readEnv(path) {
+  const text = await readFile(path, 'utf8').catch(() => '');
+  return Object.fromEntries(
+    text
+      .split('\n')
+      .filter((l) => /^[A-Z_][A-Z0-9_]*=/.test(l))
+      .map((l) => {
+        const i = l.indexOf('=');
+        return [l.slice(0, i), l.slice(i + 1).replace(/^(['"])(.*)\1$/, '$2')];
+      }),
+  );
+}
+
 async function healthy(doFetch, base, paths, sleep, tries) {
   for (let i = 0; i < tries; i++) {
     try {
@@ -116,12 +132,42 @@ export async function run(deps = {}) {
   const current = join(home, 'ld-current');
   await mkdir(stateDir, { recursive: true });
 
+  // Remote store mode: report every run to the Plow kiosk store — a flip, a
+  // rollback, a noop tick — so the freshest report doubles as "the Pi is
+  // alive" and the agent diagnoses without SSH. Diagnosis, never the deploy:
+  // any failure is one log line and the run's result stands.
+  const reportStatus = async (lastResult) => {
+    const env = await readEnv(join(home, 'ld-data', '.env'));
+    if (!env.KIOSK_STATUS_URL) return;
+    try {
+      const live = await readlink(current);
+      const stamp = JSON.parse(
+        await readFile(join(live, 'version.json'), 'utf8').catch(() => '{}'),
+      );
+      const res = await doFetch(env.KIOSK_STATUS_URL, {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${env.DASHBOARD_TOKEN}`,
+          'content-type': 'application/json',
+        },
+        redirect: 'error',
+        body: JSON.stringify({
+          sha: stamp.sha ?? null,
+          deployed_at: stamp.deployedAt ?? null,
+          last_result: lastResult,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      log(`updater: status report failed — ${err.message}`);
+    }
+  };
+
   const finish = async (code, result) => {
-    await writeFile(
-      join(stateDir, 'last-result.json'),
-      JSON.stringify({ at: now().toISOString(), ok: code === 0, ...result }, null, 2) + '\n',
-    );
+    const record = { at: now().toISOString(), ok: code === 0, ...result };
+    await writeFile(join(stateDir, 'last-result.json'), JSON.stringify(record, null, 2) + '\n');
     log(`updater: ${result.action} (${result.sha ?? 'no sha'})${result.detail ? ` — ${result.detail}` : ''}`);
+    await reportStatus(record);
     return code;
   };
 

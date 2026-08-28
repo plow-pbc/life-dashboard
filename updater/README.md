@@ -30,6 +30,7 @@ pinned; a pinned SHA is never retried, so push a new commit to deploy again.
 | `~/ld-releases/state/bad-sha` | One pinned (rolled-back) SHA per line; membership blocks a retry. |
 | `<release>/version.json` | Deploy stamp `{sha, deployedAt}` written at flip time; served by `GET /api/version`. |
 | `~/ld-data/{.env,data,banners}` | Household state outside the deploy path. The updater symlinks each (when present) into every release, so a flip never loses secrets, messages, or photos. |
+| `KIOSK_STATUS_URL` (in `~/ld-data/.env`) | Remote store mode only (`bootstrap.sh --pair`). Every run ends with `PUT <url>` `{sha, deployed_at, last_result}` under the kiosk read token (`DASHBOARD_TOKEN`) — `sha`/`deployed_at` from the live release's `version.json` (null while `bootstrap` is live), `last_result` = this file's `last-result.json`. A failed report is one log line, never a failed run. |
 
 ## Bootstrap (once per Pi)
 
@@ -40,7 +41,8 @@ checks. That needs one seed — `bootstrap.sh` is the one-shot (idempotent:
 re-running repairs a partial install, never clobbers state or `.env`):
 
 ```sh
-sh updater/bootstrap.sh https://github.com/<org>/<household-repo>.git   # public repo; private → see Git auth below FIRST
+sh updater/bootstrap.sh https://github.com/<org>/<household-repo>.git   # household fork; private → see Git auth below FIRST
+sh updater/bootstrap.sh --pair ABC123                                   # paired with Plow: tracks the template, no fork (README § Bring-up)
 ```
 
 It checks the toolchain, enables lingering, creates `~/ld-data/`, clones the
