@@ -85,13 +85,23 @@ ssh <pi-user>@<pi> "grep -qF '$PUB' ~/.ssh/authorized_keys || \
 
 ## 3. Bring up the Pi
 
-Owned by [`README.md` § Bring-up on a fresh Pi](../README.md) and
-[`updater/README.md` § Bootstrap](../updater/README.md): toolchain
-(`/usr/bin/node` ≥ 20.6, Chromium), `loginctl enable-linger`, bootstrap clone
-of the **household fork**, `~/ld-data/` with its `.env` (`ICAL_URL`;
-`DASHBOARD_TOKEN` enables remote card writes *and* the agent's off-box
-`GET /api/version` verification read), viewer + kiosk + updater systemd
-**user** units. No sudo beyond package install; no git credential (public
+Owned by [`README.md` § Bring-up on a fresh Pi](../README.md#bring-up-on-a-fresh-pi):
+install the toolchain (`/usr/bin/node` ≥ 20.6, Chromium — the one sudo
+step), then the one-shot does the rest — lingering, `~/ld-data/`, bootstrap
+clone + build of the **household fork**, all three systemd **user** units,
+started; idempotent, so re-running repairs a partial install:
+
+```sh
+HOUSEHOLD=https://github.com/<you>/life-dashboard-<household>.git
+SCRATCH=$(mktemp -d)
+git clone --depth 1 "$HOUSEHOLD" "$SCRATCH/repo"
+sh "$SCRATCH/repo/updater/bootstrap.sh" "$HOUSEHOLD"
+rm -rf "$SCRATCH"
+```
+
+Finish by writing `~/ld-data/.env` (`ICAL_URL`; `DASHBOARD_TOKEN` enables
+remote card writes *and* the agent's off-box `GET /api/version` verification
+read) and restarting the viewer unit. No git credential anywhere (public
 fork = anonymous fetch).
 
 ## 4. Teach the agent
