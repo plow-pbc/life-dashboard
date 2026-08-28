@@ -139,7 +139,7 @@ export async function run(deps = {}) {
   // any failure is one log line and the run's result stands.
   const reportStatus = async (lastResult) => {
     const env = await readEnv(join(home, 'ld-data', '.env'));
-    if (!env.KIOSK_STATUS_URL) return;
+    if (!env.KIOSK_STATUS_URL || !env.DASHBOARD_TOKEN) return;
     try {
       const live = await readlink(current);
       // Only ENOENT means "no stamp yet" (a fresh bootstrap release, before

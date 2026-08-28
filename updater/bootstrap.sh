@@ -107,7 +107,7 @@ fail() { echo "bootstrap: $1" >&2; exit 1; }
 # token bytes never pass through shell quoting; mode 600 from the first byte.
 pair() {
   case $PAIR_CODE in
-    ''|*[!A-Za-z0-9]*) fail "pairing code must be alphanumeric (6 characters, from the agent)" ;;
+    ''|*[!A-Za-z0-9]*) fail "pairing code must be alphanumeric (from the agent)" ;;
   esac
   # `if body=$(...)` (not `body=$(...) || ...`) so `set -e` doesn't exit the
   # script before the failing exit status can be captured into $status.
@@ -122,7 +122,8 @@ pair() {
     const fs = require("fs");
     const r = JSON.parse(fs.readFileSync(0, "utf8"));
     for (const k of ["cards_url", "status_url", "read_token"])
-      if (typeof r[k] !== "string" || !r[k]) throw new Error(`pair response missing ${k}`);
+      if (typeof r[k] !== "string" || !r[k] || /[\r\n]/.test(r[k]))
+        throw new Error(`pair response has an invalid ${k}`);
     fs.writeFileSync(
       process.argv[1],
       `ICAL_URL=\nKIOSK_REMOTE_URL=${r.cards_url}\nKIOSK_STATUS_URL=${r.status_url}\nDASHBOARD_TOKEN=${r.read_token}\n`,

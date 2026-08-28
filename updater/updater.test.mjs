@@ -24,11 +24,13 @@ beforeEach(async () => {
 // Fake exec: records each command line, answers `git rev-parse origin/main`
 // with the configured remote SHA, creates the target dir on `git clone`
 // (what the real clone would do), and succeeds at everything else.
-const makeExec = (log, { remoteSha, failing = null } = {}) =>
+const makeExec =
+  (log, { remoteSha, failing = null } = {}) =>
   async (argv, opts = {}) => {
     const line = argv.join(' ');
     log.push(line);
-    if (failing && line.startsWith(failing)) return { code: 1, stdout: '', stderr: 'boom: step failed' };
+    if (failing && line.startsWith(failing))
+      return { code: 1, stdout: '', stderr: 'boom: step failed' };
     if (line === 'git rev-parse origin/main') return { code: 0, stdout: `${remoteSha}\n` };
     if (line === 'git config --get remote.origin.url')
       return { code: 0, stdout: 'git@github.com:example/household.git\n' };
@@ -43,7 +45,8 @@ const noSleep = async () => {};
 // Fake fetch: probe-port requests, live requests, and the https status PUT
 // answered separately so a test can pass the pre-flip probe but fail the
 // post-flip re-check, or fail the status report alone. Every call is recorded.
-const makeFetch = ({ liveSha, liveOk = true, probeOk = true, statusOk = true }, calls = []) =>
+const makeFetch =
+  ({ liveSha, liveOk = true, probeOk = true, statusOk = true }, calls = []) =>
   async (url, init) => {
     calls.push({ url, init });
     if (url.startsWith('https://')) return { ok: statusOk, status: statusOk ? 204 : 500 };
@@ -114,7 +117,11 @@ describe('updater', () => {
   // step's output for remote diagnosis.
   it.each([
     ['npm test fails', { remoteSha: 'newsha1', failing: 'npm test' }, 'build-failed'],
-    ['probe health check fails', { remoteSha: 'newsha1', net: { liveSha: null, probeOk: false } }, 'probe-failed'],
+    [
+      'probe health check fails',
+      { remoteSha: 'newsha1', net: { liveSha: null, probeOk: false } },
+      'probe-failed',
+    ],
   ])('refuses without flipping or pinning when %s', async (_name, opts, action) => {
     const log = [];
     const code = await run(deps(log, opts));
@@ -209,6 +216,14 @@ describe('updater', () => {
     const calls = [];
     await run(deps([], { remoteSha: 'newsha1' }, calls));
     expect(calls.some((c) => c.url.startsWith('https://'))).toBe(false);
+  });
+
+  it('reports nothing when KIOSK_STATUS_URL is set but DASHBOARD_TOKEN is missing (partial .env)', async () => {
+    await mkdir(join(home, 'ld-data'), { recursive: true });
+    await writeFile(join(home, 'ld-data', '.env'), `ICAL_URL=\nKIOSK_STATUS_URL=${STATUS_URL}\n`);
+    const calls = [];
+    await run(deps([], { remoteSha: 'newsha1' }, calls));
+    expect(calls.some((c) => c.url === STATUS_URL)).toBe(false);
   });
 
   it('a status PUT that never resolves does not hang the run past its timeout', async () => {

@@ -45,10 +45,7 @@ describe('createApp', () => {
     });
 
     it('refetches after ttl expires', async () => {
-      const fetcher = vi
-        .fn()
-        .mockResolvedValueOnce('FIRST')
-        .mockResolvedValueOnce('SECOND');
+      const fetcher = vi.fn().mockResolvedValueOnce('FIRST').mockResolvedValueOnce('SECOND');
       let t = 1_000_000;
       const app = appWith(fetcher, { ttlMs: 60_000, now: () => t });
       await app.fetch(new Request(url));
@@ -134,9 +131,7 @@ describe('createApp', () => {
     // hosts at the same /banners/* path that server.js will mount.
     it('rejects non-loopback Host header at /banners/*', async () => {
       const app = createApp({ fetchUpstream: vi.fn(), getRemote: () => '127.0.0.1' });
-      const res = await app.fetch(
-        new Request('http://evil.example/banners/banner_1.png'),
-      );
+      const res = await app.fetch(new Request('http://evil.example/banners/banner_1.png'));
       expect(res.status).toBe(403);
     });
   });
@@ -161,9 +156,7 @@ describe('createApp', () => {
     it('does not reject the derived self hostname at /banners/*', async () => {
       vi.spyOn(os, 'hostname').mockReturnValue('rpi5mary');
       const app = appWith(vi.fn());
-      const res = await app.fetch(
-        new Request('http://rpi5mary/banners/banner_1.png'),
-      );
+      const res = await app.fetch(new Request('http://rpi5mary/banners/banner_1.png'));
       // Static mount lives in server.js, so a passed guard falls through to
       // 404 here — the point is it is not 403'd by the host guard.
       expect(res.status).not.toBe(403);
@@ -172,9 +165,7 @@ describe('createApp', () => {
     it("rejects an FQDN that is not this machine's bare hostname", async () => {
       vi.spyOn(os, 'hostname').mockReturnValue('rpi5mary');
       const app = appWith(vi.fn());
-      const res = await app.fetch(
-        new Request('http://rpi5mary.tailnet.ts.net/api/ical'),
-      );
+      const res = await app.fetch(new Request('http://rpi5mary.tailnet.ts.net/api/ical'));
       expect(res.status).toBe(403);
     });
   });
@@ -184,7 +175,9 @@ function memStore(initial = {}) {
   const byCard = { ...initial };
   return {
     get: async (card) => byCard[card] ?? null,
-    put: async (m) => { byCard[m.card] = m; },
+    put: async (m) => {
+      byCard[m.card] = m;
+    },
     _peek: () => ({ ...byCard }),
   };
 }
@@ -210,7 +203,7 @@ function msgApp({
 
 describe('/api/message routes', () => {
   it('GET from loopback needs no auth and returns the stored message', async () => {
-    const app = msgApp({ store: memStore({ '1': { card: '1', type: 'alert', text: 'a' } }) });
+    const app = msgApp({ store: memStore({ 1: { card: '1', type: 'alert', text: 'a' } }) });
     const res = await app.fetch(new Request('http://localhost/api/message?card=1'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ message: { card: '1', type: 'alert', text: 'a' } });
@@ -225,7 +218,8 @@ describe('/api/message routes', () => {
     const store = memStore();
     const res = await msgApp({ store }).fetch(
       new Request('http://localhost/api/message', {
-        method: 'POST', headers: auth(),
+        method: 'POST',
+        headers: auth(),
         body: JSON.stringify({ card: '2', type: 'message', text: ' hi ' }),
       }),
     );
@@ -236,10 +230,13 @@ describe('/api/message routes', () => {
   it('stores an optional empty title (to hide the eyebrow)', async () => {
     // Absence-omits-title is already covered by the trimmed-message test above.
     const store = memStore();
-    await msgApp({ store }).fetch(new Request('http://localhost/api/message', {
-      method: 'POST', headers: auth(),
-      body: JSON.stringify({ card: '2', type: 'affirmation', text: 'x', title: '' }),
-    }));
+    await msgApp({ store }).fetch(
+      new Request('http://localhost/api/message', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({ card: '2', type: 'affirmation', text: 'x', title: '' }),
+      }),
+    );
     expect(store._peek()['2']).toEqual({ card: '2', type: 'affirmation', text: 'x', title: '' });
   });
 
@@ -248,7 +245,8 @@ describe('/api/message routes', () => {
     const app = msgApp({ store });
     await app.fetch(
       new Request('http://localhost/api/message', {
-        method: 'POST', headers: auth(),
+        method: 'POST',
+        headers: auth(),
         body: JSON.stringify({ card: '__verify__', type: 'plain', text: 'probe' }),
       }),
     );
@@ -269,7 +267,8 @@ describe('/api/message routes', () => {
   ])('POST rejects invalid body %j with 400', async (body) => {
     const res = await msgApp().fetch(
       new Request('http://localhost/api/message', {
-        method: 'POST', headers: auth(),
+        method: 'POST',
+        headers: auth(),
         body: typeof body === 'string' ? body : JSON.stringify(body),
       }),
     );
@@ -279,7 +278,8 @@ describe('/api/message routes', () => {
   it('POST rejects bad/missing bearer with 401 even from loopback', async () => {
     const res = await msgApp().fetch(
       new Request('http://localhost/api/message', {
-        method: 'POST', headers: auth('wrong'),
+        method: 'POST',
+        headers: auth('wrong'),
         body: JSON.stringify({ card: '1', type: 'alert', text: 'x' }),
       }),
     );
@@ -315,6 +315,18 @@ describe('remote store mode (KIOSK_REMOTE_URL)', () => {
     );
     expect(res.status).toBe(405);
   });
+
+  it('GET serves a card through the poller, not just the underlying store', async () => {
+    const fetchCards = vi.fn(async () => ({
+      1: { card: '1', type: 'alert', text: 'polled' },
+    }));
+    const res = await remoteApp(fetchCards).fetch(
+      new Request('http://localhost/api/message?card=1'),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ message: { card: '1', type: 'alert', text: 'polled' } });
+    expect(fetchCards).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('bearer check rejects empty/missing token config', () => {
@@ -345,7 +357,8 @@ describe('remote (non-loopback) access', () => {
     const store = memStore();
     const res = await msgApp({ store, remote: '192.168.1.50' }).fetch(
       new Request('http://pi-host/api/message', {
-        method: 'POST', headers: auth(),
+        method: 'POST',
+        headers: auth(),
         body: JSON.stringify({ card: '1', type: 'alert', text: 'remote' }),
       }),
     );
@@ -406,14 +419,19 @@ describe('remote (non-loopback) access', () => {
   // remoteGuard's private-path rejection as the only possible source of the 403.
   const PINCH = { store: { read: () => ({ recipes: [] }) }, photosDir: '/p' };
 
-  it.each(['/api/ical', '/api/banners', '/api/pinch/collection', '/banners/x.png', '/', '/index.html'])(
-    'rejects private path %s with 403 even with bearer', async (path) => {
-      const res = await msgApp({ remote: '192.168.1.50', pinch: PINCH }).fetch(
-        new Request(`http://localhost${path}`, { headers: auth() }),
-      );
-      expect(res.status).toBe(403);
-    },
-  );
+  it.each([
+    '/api/ical',
+    '/api/banners',
+    '/api/pinch/collection',
+    '/banners/x.png',
+    '/',
+    '/index.html',
+  ])('rejects private path %s with 403 even with bearer', async (path) => {
+    const res = await msgApp({ remote: '192.168.1.50', pinch: PINCH }).fetch(
+      new Request(`http://localhost${path}`, { headers: auth() }),
+    );
+    expect(res.status).toBe(403);
+  });
 
   it('allows /healthz from a remote address (unguarded liveness probe)', async () => {
     const res = await msgApp({ remote: '192.168.1.50' }).fetch(
@@ -445,7 +463,11 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
   it('POST with bearer validates+saves and echoes {stored, upCount}', async () => {
     const store = bannerStoreMock();
     const res = await banApp({ store }).fetch(
-      new Request('http://localhost/api/banners', { method: 'POST', headers: auth(), body: imgBody() }),
+      new Request('http://localhost/api/banners', {
+        method: 'POST',
+        headers: auth(),
+        body: imgBody(),
+      }),
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ stored: 'up_1700000000_x.jpg', upCount: 1 });
@@ -455,15 +477,41 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
   // Every mutation re-checks the bearer (the loopback path only runs the Host
   // guard, so the route is the sole auth there) — bad/missing/remote, no store call.
   it.each([
-    { name: 'loopback POST, bad bearer', method: 'POST', headers: auth('wrong'), remote: '127.0.0.1', fn: 'save' },
-    { name: 'loopback POST, no bearer', method: 'POST', headers: {}, remote: '127.0.0.1', fn: 'save' },
-    { name: 'loopback DELETE, no bearer', method: 'DELETE', headers: {}, remote: '127.0.0.1', fn: 'clear' },
-    { name: 'remote POST, no bearer', method: 'POST', headers: {}, remote: '100.64.0.7', fn: 'save' },
+    {
+      name: 'loopback POST, bad bearer',
+      method: 'POST',
+      headers: auth('wrong'),
+      remote: '127.0.0.1',
+      fn: 'save',
+    },
+    {
+      name: 'loopback POST, no bearer',
+      method: 'POST',
+      headers: {},
+      remote: '127.0.0.1',
+      fn: 'save',
+    },
+    {
+      name: 'loopback DELETE, no bearer',
+      method: 'DELETE',
+      headers: {},
+      remote: '127.0.0.1',
+      fn: 'clear',
+    },
+    {
+      name: 'remote POST, no bearer',
+      method: 'POST',
+      headers: {},
+      remote: '100.64.0.7',
+      fn: 'save',
+    },
   ])('mutation rejected — $name → 401, no store call', async ({ method, headers, remote, fn }) => {
     const store = bannerStoreMock();
     const res = await banApp({ store, remote }).fetch(
       new Request('http://localhost/api/banners', {
-        method, headers, body: method === 'POST' ? imgBody() : undefined,
+        method,
+        headers,
+        body: method === 'POST' ? imgBody() : undefined,
       }),
     );
     expect(res.status).toBe(401);
@@ -473,7 +521,9 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
   it('POST rejects a body with no image data (400)', async () => {
     const res = await banApp().fetch(
       new Request('http://localhost/api/banners', {
-        method: 'POST', headers: auth(), body: JSON.stringify({ filename: 'p.jpg' }),
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({ filename: 'p.jpg' }),
       }),
     );
     expect(res.status).toBe(400);
@@ -483,7 +533,11 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
     const store = bannerStoreMock();
     const huge = 'A'.repeat(21 * 1024 * 1024); // > the ~20MB base64/request ceiling
     const res = await banApp({ store }).fetch(
-      new Request('http://localhost/api/banners', { method: 'POST', headers: auth(), body: imgBody(huge) }),
+      new Request('http://localhost/api/banners', {
+        method: 'POST',
+        headers: auth(),
+        body: imgBody(huge),
+      }),
     );
     expect(res.status).toBe(413);
     expect(store.save).not.toHaveBeenCalled();
@@ -499,7 +553,12 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
       },
     });
     const res = await banApp({ store }).fetch(
-      new Request('http://localhost/api/banners', { method: 'POST', headers: auth(), body, duplex: 'half' }),
+      new Request('http://localhost/api/banners', {
+        method: 'POST',
+        headers: auth(),
+        body,
+        duplex: 'half',
+      }),
     );
     expect(res.status).toBe(413);
     expect(store.save).not.toHaveBeenCalled(); // never buffered/parsed the whole body
@@ -507,9 +566,15 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
 
   it('POST surfaces a 400 from the store (e.g. undecodable / HEIC)', async () => {
     const store = bannerStoreMock();
-    store.save.mockRejectedValueOnce(Object.assign(new Error('not a decodable image'), { status: 400 }));
+    store.save.mockRejectedValueOnce(
+      Object.assign(new Error('not a decodable image'), { status: 400 }),
+    );
     const res = await banApp({ store }).fetch(
-      new Request('http://localhost/api/banners', { method: 'POST', headers: auth(), body: imgBody() }),
+      new Request('http://localhost/api/banners', {
+        method: 'POST',
+        headers: auth(),
+        body: imgBody(),
+      }),
     );
     expect(res.status).toBe(400);
   });
@@ -524,20 +589,25 @@ describe('/api/banners CRUD (texted-photo) routes', () => {
     expect(store.clear).toHaveBeenCalledTimes(1);
   });
 
-
   it('a non-loopback PRODUCER may POST /api/banners with the bearer', async () => {
     const store = bannerStoreMock();
     const res = await banApp({ store, remote: '100.64.0.7' }).fetch(
-      new Request('http://pi-host/api/banners', { method: 'POST', headers: auth(), body: imgBody() }),
+      new Request('http://pi-host/api/banners', {
+        method: 'POST',
+        headers: auth(),
+        body: imgBody(),
+      }),
     );
     expect(res.status).toBe(200);
     expect(store.save).toHaveBeenCalledTimes(1);
   });
-
 });
 
 describe('/api/pinch mounting', () => {
-  const pinch = { store: { read: () => ({ recipes: [{ id: 'a', title: 'Soup' }] }) }, photosDir: '/p' };
+  const pinch = {
+    store: { read: () => ({ recipes: [{ id: 'a', title: 'Soup' }] }) },
+    photosDir: '/p',
+  };
   const url = 'http://localhost/api/pinch/collection';
 
   it('mounts the collection route when a recipe store is configured', async () => {
@@ -566,5 +636,4 @@ describe('/api/pinch mounting', () => {
     );
     expect(res.status).toBe(403);
   });
-
 });
