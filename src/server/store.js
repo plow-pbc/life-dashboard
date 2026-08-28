@@ -13,18 +13,12 @@ export async function createFileStore(path) {
   } catch (err) {
     if (err.code !== 'ENOENT') throw err; // corrupt file should fail loud, not wipe
   }
-  // Serialize writes: two concurrent put()s share the same .tmp path; the
+  // Serialize writes: two concurrent writes share the same .tmp path; the
   // loser's rename would throw (tmp already moved by the winner). Chain on a
   // single promise so each write waits for the previous one to finish.
-  // The chain is kept healthy by swallowing rejections on the shared tail
-  // (writes = p.catch(noop)) — a failed write still rejects to its caller via
-  // p, but the next put() chains off a resolved promise, not a poisoned one.
   let writes = Promise.resolve();
-  // Shared tmp+rename write, queued behind any write in flight: two
-  // concurrent writes share the same .tmp path, so the loser's rename would
-  // throw (tmp already moved by the winner). `buildNext` computes the map to
-  // persist from the current `byCard` — put() merges one key in, replace()
-  // swaps the whole thing.
+  // `buildNext` computes the map to persist from the current `byCard` —
+  // put() merges one key in, replace() swaps the whole thing.
   const queueWrite = (buildNext) => {
     const write = async () => {
       const next = buildNext();
