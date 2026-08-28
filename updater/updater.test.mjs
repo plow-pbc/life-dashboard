@@ -66,6 +66,7 @@ const deps = (log, opts, calls = []) => ({
   fetch: makeFetch(opts.net ?? { liveSha: opts.remoteSha }, calls),
   sleep: noSleep,
   log: () => {},
+  env: opts.env ?? {},
 });
 
 describe('updater', () => {
@@ -170,16 +171,11 @@ describe('updater', () => {
     expect(existsSync(stateDir)).toBe(true);
   });
 
-  // Remote store mode: ~/ld-data/.env names KIOSK_STATUS_URL and the read
-  // token; every run reports what it did so the agent diagnoses without SSH.
+  // Remote store mode: the unit's --env-file names KIOSK_STATUS_URL and the
+  // read token; every run reports what it did so the agent diagnoses without
+  // SSH.
   const STATUS_URL = 'https://api.plow.co/v1/kiosks/kio_1/status';
-  const writeEnv = () =>
-    mkdir(join(home, 'ld-data'), { recursive: true }).then(() =>
-      writeFile(
-        join(home, 'ld-data', '.env'),
-        `ICAL_URL=\nKIOSK_STATUS_URL=${STATUS_URL}\nDASHBOARD_TOKEN=rt_secret\n`,
-      ),
-    );
+  const statusEnv = { KIOSK_STATUS_URL: STATUS_URL, DASHBOARD_TOKEN: 'rt_secret' };
   const statusPut = (calls) => calls.find((c) => c.url === STATUS_URL);
 
   it.each([
@@ -187,9 +183,8 @@ describe('updater', () => {
     // Bootstrap release live (no version.json yet): sha stays null until the first real flip.
     ['on a noop tick', { remoteSha: 'oldsha0' }, { sha: null, action: 'noop' }],
   ])('PUTs {sha, deployed_at, last_result} to KIOSK_STATUS_URL %s', async (_name, opts, want) => {
-    await writeEnv();
     const calls = [];
-    expect(await run(deps([], opts, calls))).toBe(0);
+    expect(await run(deps([], { ...opts, env: statusEnv }, calls))).toBe(0);
     const put = statusPut(calls);
     expect(put.init.method).toBe('PUT');
     expect(put.init.headers.authorization).toBe('Bearer rt_secret');
@@ -201,10 +196,13 @@ describe('updater', () => {
   });
 
   it('a failed status report is logged, never fatal — the deploy still counts', async () => {
-    await writeEnv();
     const calls = [];
     const code = await run(
-      deps([], { remoteSha: 'newsha1', net: { liveSha: 'newsha1', statusOk: false } }, calls),
+      deps(
+        [],
+        { remoteSha: 'newsha1', net: { liveSha: 'newsha1', statusOk: false }, env: statusEnv },
+        calls,
+      ),
     );
     expect(code).toBe(0);
     expect(await readlink(current)).toBe(join(releases, 'newsha1'));
@@ -212,22 +210,19 @@ describe('updater', () => {
     expect(result).toMatchObject({ action: 'deployed', ok: true });
   });
 
-  it('reports nothing when ~/ld-data/.env has no KIOSK_STATUS_URL (local mode)', async () => {
+  it('reports nothing when the env has no KIOSK_STATUS_URL (local mode)', async () => {
     const calls = [];
     await run(deps([], { remoteSha: 'newsha1' }, calls));
     expect(calls.some((c) => c.url.startsWith('https://'))).toBe(false);
   });
 
-  it('reports nothing when KIOSK_STATUS_URL is set but DASHBOARD_TOKEN is missing (partial .env)', async () => {
-    await mkdir(join(home, 'ld-data'), { recursive: true });
-    await writeFile(join(home, 'ld-data', '.env'), `ICAL_URL=\nKIOSK_STATUS_URL=${STATUS_URL}\n`);
+  it('reports nothing when KIOSK_STATUS_URL is set but DASHBOARD_TOKEN is missing (partial env)', async () => {
     const calls = [];
-    await run(deps([], { remoteSha: 'newsha1' }, calls));
+    await run(deps([], { remoteSha: 'newsha1', env: { KIOSK_STATUS_URL: STATUS_URL } }, calls));
     expect(calls.some((c) => c.url === STATUS_URL)).toBe(false);
   });
 
   it('a status PUT that never resolves does not hang the run past its timeout', async () => {
-    await writeEnv();
     const inner = makeFetch({ liveSha: 'newsha1' });
     // Simulates a blackholed KIOSK_STATUS_URL: the promise never settles on
     // its own — only AbortSignal.timeout firing resolves it, same as a real
@@ -243,7 +238,7 @@ describe('updater', () => {
       });
     };
     const code = await run({
-      ...deps([], { remoteSha: 'newsha1', net: { liveSha: 'newsha1' } }),
+      ...deps([], { remoteSha: 'newsha1', net: { liveSha: 'newsha1' }, env: statusEnv }),
       fetch: hangingFetch,
       statusTimeoutMs: 5, // real ms, but tiny — no 10 s test sleep
     });
@@ -253,12 +248,11 @@ describe('updater', () => {
   });
 
   it('a corrupt version.json fails the status report loudly instead of reporting sha: null', async () => {
-    await writeEnv();
     // Live release already flipped with a bad stamp on disk (simulates a
     // torn write); the noop tick should still try to report and fail loudly.
     await writeFile(join(releases, 'oldsha0', 'version.json'), '{not json');
     const calls = [];
-    const code = await run(deps([], { remoteSha: 'oldsha0' }, calls));
+    const code = await run(deps([], { remoteSha: 'oldsha0', env: statusEnv }, calls));
     expect(code).toBe(0); // the noop action itself still succeeds
     expect(statusPut(calls)).toBeUndefined(); // reportStatus threw before the PUT
   });

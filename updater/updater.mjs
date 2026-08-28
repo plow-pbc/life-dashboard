@@ -65,22 +65,6 @@ const realSpawn = (argv, opts = {}) => {
 // carry the tail of whatever the failing step said.
 const tail = (s) => (s ?? '').trim().slice(-2000);
 
-// ~/ld-data/.env as bootstrap.sh writes it (plain KEY=value lines, optional
-// surrounding quotes); the updater has no --env-file and the file may not
-// exist on a by-hand install — then there is simply nothing to report to.
-async function readEnv(path) {
-  const text = await readFile(path, 'utf8').catch(() => '');
-  return Object.fromEntries(
-    text
-      .split('\n')
-      .filter((l) => /^[A-Z_][A-Z0-9_]*=/.test(l))
-      .map((l) => {
-        const i = l.indexOf('=');
-        return [l.slice(0, i), l.slice(i + 1).replace(/^(['"])(.*)\1$/, '$2')];
-      }),
-  );
-}
-
 async function healthy(doFetch, base, paths, sleep, tries) {
   for (let i = 0; i < tries; i++) {
     try {
@@ -126,6 +110,9 @@ export async function run(deps = {}) {
     now = () => new Date(),
     log = (m) => console.log(m),
     statusTimeoutMs = 10_000,
+    // Unit runs with --env-file=%h/ld-current/.env (mirrors the viewer unit);
+    // KIOSK_STATUS_URL / DASHBOARD_TOKEN are then plain process.env reads.
+    env = process.env,
   } = deps;
 
   const releases = join(home, 'ld-releases');
@@ -138,7 +125,6 @@ export async function run(deps = {}) {
   // alive" and the agent diagnoses without SSH. Diagnosis, never the deploy:
   // any failure is one log line and the run's result stands.
   const reportStatus = async (lastResult) => {
-    const env = await readEnv(join(home, 'ld-data', '.env'));
     if (!env.KIOSK_STATUS_URL || !env.DASHBOARD_TOKEN) return;
     try {
       const live = await readlink(current);

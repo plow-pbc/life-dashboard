@@ -42,7 +42,7 @@ within the hour.
 | `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
 | `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and, in fork mode, the off-box `GET /api/version` verification read (see `KIOSK_REMOTE_URL` below for paired mode, which binds loopback only). Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
 | `KIOSK_REMOTE_URL` | no | — | Remote store mode: the Plow kiosk store's cards URL, written by `bootstrap.sh --pair`. `/api/message` is served from a 60 s poll of it (write-through to `data/messages.json` for last-good), `POST /api/message` answers 405, the server binds loopback only, and no banner CRUD mounts. `DASHBOARD_TOKEN` is then the kiosk read token. Blank = local mode, unchanged. |
-| `KIOSK_STATUS_URL` | no | — | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater from `~/ld-data/.env`, not by the viewer. |
+| `KIOSK_STATUS_URL` | no | — | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater's unit via `--env-file=%h/ld-current/.env` (a symlink to `~/ld-data/.env`), same as the viewer unit. |
 | `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated). |
 
 ## Cook Tonight (optional)

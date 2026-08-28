@@ -30,7 +30,7 @@ pinned; a pinned SHA is never retried, so push a new commit to deploy again.
 | `~/ld-releases/state/bad-sha` | One pinned (rolled-back) SHA per line; membership blocks a retry. |
 | `<release>/version.json` | Deploy stamp `{sha, deployedAt}` written at flip time; served by `GET /api/version` (fork mode — paired mode is verified via `KIOSK_STATUS_URL` below instead). |
 | `~/ld-data/{.env,data,banners}` | Household state outside the deploy path. The updater symlinks each (when present) into every release, so a flip never loses secrets, messages, or photos. |
-| `KIOSK_STATUS_URL` (in `~/ld-data/.env`) | Remote store mode only (`bootstrap.sh --pair`). Every run ends with `PUT <url>` `{sha, deployed_at, last_result}` under the kiosk read token (`DASHBOARD_TOKEN`) — `sha`/`deployed_at` from the live release's `version.json` (null while `bootstrap` is live), `last_result` = this file's `last-result.json`. A failed report is one log line, never a failed run. |
+| `KIOSK_STATUS_URL` (in `~/ld-data/.env`, injected via the unit's `--env-file`) | Remote store mode only (`bootstrap.sh --pair`). Every run ends with `PUT <url>` `{sha, deployed_at, last_result}` under the kiosk read token (`DASHBOARD_TOKEN`) — `sha`/`deployed_at` from the live release's `version.json` (null while `bootstrap` is live), `last_result` = this file's `last-result.json`. A failed report is one log line, never a failed run. |
 
 ## Bootstrap (once per Pi)
 
