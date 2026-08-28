@@ -55,7 +55,9 @@ const realSpawn = (argv, opts = {}) => {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   let stderr = '';
-  child.stderr.on('data', (chunk) => (stderr += chunk));
+  // Only the tail ever reaches last-result.json; cap accumulation so a
+  // crash-looping probe can't balloon memory during the health-check window.
+  child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-65536)));
   return { kill: () => child.kill(), stderr: () => stderr };
 };
 
