@@ -3,11 +3,14 @@ import { createCardPoller } from './remote.js';
 
 // In-memory stand-in for createFileStore: same get/put contract.
 function memStore(initial = {}) {
-  const byCard = { ...initial };
+  let byCard = { ...initial };
   return {
     get: async (card) => byCard[card] ?? null,
     put: async (m) => {
       byCard[m.card] = m;
+    },
+    replace: async (snapshot) => {
+      byCard = { ...snapshot };
     },
   };
 }
@@ -71,6 +74,19 @@ describe('createCardPoller', () => {
     t += 61_000;
     expect((await poller.get('1')).text).toBe('good');
     expect(log).toHaveBeenCalledWith(expect.stringContaining('HTTP 502'));
+  });
+
+  it('a card absent from a successful refresh is cleared, not left stale', async () => {
+    let t = 1_000_000;
+    const fetchCards = vi
+      .fn()
+      .mockResolvedValueOnce(upstream)
+      .mockResolvedValueOnce({ 1: upstream[1] }); // card 3 no longer posted upstream
+    const poller = createCardPoller({ fetchCards, store: memStore(), ttlMs: 60_000, now: () => t });
+    expect((await poller.get('3')).text).toBe('<div>72°</div>');
+    t += 61_000;
+    expect(await poller.get('3')).toBeNull();
+    expect((await poller.get('1')).text).toBe('polled');
   });
 
   it('last-good is the on-disk store: a fresh poller over the same store serves it before any fetch succeeds', async () => {

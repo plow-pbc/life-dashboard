@@ -37,5 +37,20 @@ export async function createFileStore(path) {
       writes = p.catch(() => {});
       return p;
     },
+    // Commit the complete snapshot in one atomic write: any card absent from
+    // it is dropped, never left stale from a prior put(). Same tmp+rename
+    // path and write queue as put() — just a different `next`.
+    replace(byCardSnapshot) {
+      const write = async () => {
+        const next = Object.assign(Object.create(null), byCardSnapshot);
+        const tmp = `${path}.tmp`;
+        await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
+        await rename(tmp, path);
+        byCard = next;
+      };
+      const p = writes.then(write);
+      writes = p.catch(() => {});
+      return p;
+    },
   };
 }

@@ -18,15 +18,16 @@ export function createCardPoller({
     inflight = (async () => {
       try {
         const cards = await fetchCards();
+        const snapshot = Object.create(null);
         for (const [card, { type, text, title }] of Object.entries(cards)) {
           // The viewer's wire shape: title absent = type label, '' = hidden.
-          const message =
+          snapshot[card] =
             typeof title === 'string' ? { card, type, text, title } : { card, type, text };
-          // Skip unchanged cards: every put is an atomic rewrite on an SD card.
-          if (JSON.stringify(message) !== JSON.stringify(await store.get(card))) {
-            await store.put(message);
-          }
         }
+        // One atomic commit of the complete snapshot: a card absent from a
+        // successful upstream fetch is dropped, never left stale — no mixed
+        // snapshot (some cards updated, some stale) is ever observable.
+        await store.replace(snapshot);
       } catch (err) {
         log(`remote cards: ${err.message} — serving last-good`);
       } finally {

@@ -172,11 +172,14 @@ describe('createApp', () => {
 });
 
 function memStore(initial = {}) {
-  const byCard = { ...initial };
+  let byCard = { ...initial };
   return {
     get: async (card) => byCard[card] ?? null,
     put: async (m) => {
       byCard[m.card] = m;
+    },
+    replace: async (snapshot) => {
+      byCard = { ...snapshot };
     },
     _peek: () => ({ ...byCard }),
   };
