@@ -2,6 +2,7 @@ import os from 'node:os';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createApp } from './app.js';
 import { createCardPoller } from './remote.js';
+import { memStore } from '../../test/fixtures';
 
 function appWith(fetcher, opts = {}) {
   return createApp({
@@ -171,19 +172,6 @@ describe('createApp', () => {
   });
 });
 
-function memStore(initial = {}) {
-  let byCard = { ...initial };
-  return {
-    get: async (card) => byCard[card] ?? null,
-    put: async (m) => {
-      byCard[m.card] = m;
-    },
-    replace: async (snapshot) => {
-      byCard = { ...snapshot };
-    },
-    _peek: () => ({ ...byCard }),
-  };
-}
 const auth = (t = 'tok') => ({ Authorization: `Bearer ${t}` });
 const NO_TOKEN = Symbol('no-token');
 function msgApp({

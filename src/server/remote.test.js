@@ -1,19 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createCardPoller } from './remote.js';
-
-// In-memory stand-in for createFileStore: same get/put contract.
-function memStore(initial = {}) {
-  let byCard = { ...initial };
-  return {
-    get: async (card) => byCard[card] ?? null,
-    put: async (m) => {
-      byCard[m.card] = m;
-    },
-    replace: async (snapshot) => {
-      byCard = { ...snapshot };
-    },
-  };
-}
+import { memStore } from '../../test/fixtures';
 
 const upstream = {
   1: { type: 'alert', text: 'polled', title: '', posted_at: '2026-08-28T00:00:00Z' },
