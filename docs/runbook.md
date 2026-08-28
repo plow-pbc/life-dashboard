@@ -17,7 +17,8 @@ plow-pbc/life-dashboard              the public TEMPLATE (this repo)
      │ write deploy key   ▼
      │                 Pi updater — builds, health-checks,
      │                 flips atomically, rolls back
- the agent ···· diagnostics-only SSH ····►  Pi
+  the agent ···· diagnostics-only SSH ····►  Pi
+  (source of the deploy-key push above)
 ```
 
 - **The household repo is a public fork.** Public makes the Pi's fetches
