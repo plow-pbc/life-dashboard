@@ -12,6 +12,10 @@ household's repo; the wall updates itself.
 
 ## How households use this
 
+The end-to-end sequence — fork, keys, Pi, agent, and the prove-the-loop
+checklist — is [`docs/runbook.md`](docs/runbook.md); the sections below and
+`updater/README.md` own the per-step details it links to.
+
 Each household deploys from its **own copy** of this template. A public
 fork is the simplest shape — the Pi then fetches with no credential at all —
 and it is safe because the repo holds the *frame*, never the data (see
@@ -61,13 +65,21 @@ template/main && git push` (the updater deploys the merge like any other push).
 ## The agent's deploy contract
 
 - **Push to the household repo's `main` = deploy.** The updater fetches within
-  2 minutes, builds, tests, health-checks, and flips atomically.
+  2 minutes, builds, tests, health-checks, and flips atomically. Every
+  git-over-ssh run binds the provisioned credentials explicitly — never the
+  default identity or trust state:
+
+  ```sh
+  export GIT_SSH_COMMAND='ssh -i <state>/ld-dev/ssh/deploy_key -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
+  ```
 - **Verify via `GET /api/version`** with the household bearer
   (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
   → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
   `~/ld-releases/state/last-result.json`.
-- **SSH is for diagnostics only** (journal reads, `systemctl --user restart
-  life-dashboard-viewer`, updater state) — never the deploy path.
+- **SSH is for diagnosis and repair** (journal reads, `systemctl --user
+  restart life-dashboard-viewer`, updater state, fixing live state) — never
+  the deploy path: viewer-code changes ride the push, not the shell.
 
 ## Privacy
 
