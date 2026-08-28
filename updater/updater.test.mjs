@@ -105,17 +105,18 @@ describe('updater', () => {
   });
 
   // Build/test and probe failures share the arrange/act shape: deploy is
-  // refused, the SHA is pinned, ld-current never moves, and last-result
-  // carries the failing step's output for remote diagnosis.
+  // refused, ld-current never moves, the SHA stays UNPINNED (a transient
+  // failure retries on the next tick), and last-result carries the failing
+  // step's output for remote diagnosis.
   it.each([
     ['npm test fails', { remoteSha: 'newsha1', failing: 'npm test' }, 'build-failed'],
     ['probe health check fails', { remoteSha: 'newsha1', net: { liveSha: null, probeOk: false } }, 'probe-failed'],
-  ])('pins the SHA without flipping when %s', async (_name, opts, action) => {
+  ])('refuses without flipping or pinning when %s', async (_name, opts, action) => {
     const log = [];
     const code = await run(deps(log, opts));
     expect(code).toBe(1);
     expect(await readlink(current)).toBe(join(releases, 'oldsha0'));
-    expect(await readFile(join(stateDir, 'bad-sha'), 'utf8')).toContain('newsha1');
+    expect(existsSync(join(stateDir, 'bad-sha'))).toBe(false);
     expect(log).not.toContain('systemctl --user restart life-dashboard-viewer');
     const result = JSON.parse(await readFile(join(stateDir, 'last-result.json'), 'utf8'));
     expect(result).toMatchObject({ action, sha: 'newsha1', ok: false });

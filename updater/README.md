@@ -6,7 +6,8 @@ Deploy = a push to the household repo's `main`. Every 2 minutes a systemd
 1. `git fetch` + `git rev-parse origin/main` in the current release.
 2. Exits (`noop` / `skipped-bad-sha`) if the SHA is already live or pinned bad.
 3. Clones the repo at that SHA into a fresh release dir, then `npm ci`,
-   `npm run build`, `npm test` — any failure pins the SHA and stops.
+   `npm run build`, `npm test` — any failure stops, unpinned: the next tick
+   retries, so a transient registry/network hiccup never wedges deploys.
 4. Symlinks the shared household state into the release (see below), boots the
    built server on probe port 5199, and health-checks `/healthz`, `/`,
    `/api/version`.
@@ -16,7 +17,8 @@ Deploy = a push to the household repo's `main`. Every 2 minutes a systemd
 6. Any post-flip failure: flips the symlink back to the previous release,
    restarts, and pins the SHA. Success: prunes to the 5 newest releases.
 
-A pinned SHA is never retried — push a new commit to deploy again.
+Only a rolled-back SHA — one that reached the wall and failed live — gets
+pinned; a pinned SHA is never retried, so push a new commit to deploy again.
 
 ## On-disk contract
 
@@ -25,7 +27,7 @@ A pinned SHA is never retried — push a new commit to deploy again.
 | `~/ld-current` | Symlink to the live release dir. The viewer unit's `WorkingDirectory`; the updater binary also runs from here. |
 | `~/ld-releases/<sha>/` | One immutable checkout + build per deployed SHA (newest 5 kept). |
 | `~/ld-releases/state/last-result.json` | What the last run did: `{at, ok, action, sha, detail?}`. First thing to read when diagnosing. |
-| `~/ld-releases/state/bad-sha` | One pinned (failed) SHA per line; membership blocks a retry. |
+| `~/ld-releases/state/bad-sha` | One pinned (rolled-back) SHA per line; membership blocks a retry. |
 | `<release>/version.json` | Deploy stamp `{sha, deployedAt}` written at flip time; served by `GET /api/version`. |
 | `~/ld-data/{.env,data,banners}` | Household state outside the deploy path. The updater symlinks each (when present) into every release, so a flip never loses secrets, messages, or photos. |
 

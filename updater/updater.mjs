@@ -141,11 +141,12 @@ export async function run(deps = {}) {
   const pinned = existsSync(badShaFile) ? await readFile(badShaFile, 'utf8') : '';
   if (pinned.split('\n').includes(sha)) return finish(0, { action: 'skipped-bad-sha', sha });
 
+  // Pre-flip failures finish UNPINNED: a transient clone/registry/build hiccup
+  // retries on the next tick instead of wedging the household on the old
+  // dashboard until someone pushes again. bad-sha is reserved for the one case
+  // that already reached the wall and had to be undone (post-flip rollback).
   const pin = () => appendFile(badShaFile, `${sha}\n`);
-  const fail = async (action, detail) => {
-    await pin();
-    return finish(1, { action, sha, detail });
-  };
+  const fail = (action, detail) => finish(1, { action, sha, detail });
 
   // 3. Fresh release dir: clone at the SHA, build, test.
   const releaseDir = join(releases, sha);
@@ -193,6 +194,7 @@ export async function run(deps = {}) {
     // Roll back: previous release is still on disk; flip the symlink home.
     await flipTo(current, currentDir);
     await restart();
+    await pin(); // proven bad on the wall — never auto-retry this SHA
     return fail('rolled-back', 'post-flip health check failed');
   }
 
