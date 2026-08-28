@@ -44,8 +44,8 @@ template/main && git push` (the updater deploys the merge like any other push).
 3. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
    `--user` unit that would otherwise die with the login session — then clone
    to `~/ld-releases/bootstrap`, initial `~/ld-current` symlink, `~/ld-data/`,
-   deploy-key git auth, enable the timer) — exact commands in
-   `updater/README.md` § Bootstrap.
+   enable the timer) — exact commands in
+   `updater/README.md` § Bootstrap (git auth only for a private repo).
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
    (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
    APIs and the off-box `/api/version` verification read;
