@@ -48,9 +48,10 @@ systemctl --user daemon-reload
 systemctl --user enable --now life-dashboard-updater.timer
 ```
 
-Git auth: the timer's fetches run under systemd with no ssh-agent, so give the
-Pi a passphrase-less read-only deploy key and pin it **globally** (fresh
-release clones don't inherit repo-local config):
+Git auth: none for a **public** household repo — the timer fetches over
+anonymous HTTPS. For a **private** one, the fetches run under systemd with no
+ssh-agent, so give the Pi a passphrase-less read-only credential pinned
+**globally** (fresh release clones don't inherit repo-local config), e.g.:
 
 ```sh
 git config --global core.sshCommand 'ssh -i ~/.ssh/ld_deploy -o IdentitiesOnly=yes'

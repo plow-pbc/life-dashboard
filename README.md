@@ -12,12 +12,16 @@ household's repo; the wall updates itself.
 
 ## How households use this
 
-Each household deploys from its **own private copy** of this template — a
-plain clone-push, **not a GitHub fork** (forks of public repos must be public,
-and the household repo may accumulate household-specific tweaks):
+Each household deploys from its **own copy** of this template. A public
+fork is the simplest shape — the Pi then fetches with no credential at all —
+and it is safe because the repo holds the *frame*, never the data (see
+Privacy below). What public costs is the commit stream: household commits and
+diffs are world-readable, so household code and commit messages must stay
+free of personal detail (the agent's skill enforces this as a hard rule). A
+private clone-push works too, at the price of a read credential for the Pi:
 
 ```sh
-gh repo create <you>/life-dashboard-<household> --private
+gh repo create <you>/life-dashboard-<household> --public
 git clone git@github.com:plow-pbc/life-dashboard.git life-dashboard-<household>
 cd life-dashboard-<household>
 git remote rename origin template
@@ -34,7 +38,9 @@ template/main && git push` (the updater deploys the merge like any other push).
    hardcode that path; the `--env-file` flag needs 20.6) and Chromium at
    `/usr/bin/chromium` — on Raspberry Pi OS, `sudo apt install nodejs chromium`
    and check `node --version`.
-2. Create the household repo (above) and give the Pi read access to it.
+2. Create the household repo (above). Public: the Pi fetches anonymously —
+   nothing to provision. Private: give the Pi a read-only credential
+   (`updater/README.md` § Git auth).
 3. Seed the updater (`loginctl enable-linger` FIRST — every unit here is a
    `--user` unit that would otherwise die with the login session — then clone
    to `~/ld-releases/bootstrap`, initial `~/ld-current` symlink, `~/ld-data/`,
@@ -66,8 +72,8 @@ template/main && git push` (the updater deploys the merge like any other push).
 ## Privacy
 
 The template carries zero household data. Calendars, tokens, messages, and
-photos live only on the Pi (`~/ld-data/`, gitignored paths) and household
-repos stay private.
+photos live only on the Pi (`~/ld-data/`, gitignored paths) — a household
+repo, public or private, ships the display's mechanism and nothing personal.
 
 ## Development
 
