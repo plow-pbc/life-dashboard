@@ -37,14 +37,23 @@ mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
 
 # -- bootstrap release + the ld-current symlink the units run from -------------
 mkdir -p "$HOME/ld-releases"
-# rev-parse, not a bare .git check: an interrupted clone leaves .git behind
-# with an incomplete checkout, and a repair run must re-clone it.
-git -C "$HOME/ld-releases/bootstrap" rev-parse HEAD >/dev/null 2>&1 || {
-  rm -rf "$HOME/ld-releases/bootstrap"
-  git clone "$REPO_URL" "$HOME/ld-releases/bootstrap"
+# Clone to a sibling and rename only on success: an interrupted clone can
+# leave even a HEAD-resolvable-but-incomplete tree, and a bare existence (or
+# rev-parse) check would accept it forever. The rename is the commit point.
+[ -d "$HOME/ld-releases/bootstrap" ] || {
+  rm -rf "$HOME/ld-releases/bootstrap.new"
+  git clone "$REPO_URL" "$HOME/ld-releases/bootstrap.new"
+  mv "$HOME/ld-releases/bootstrap.new" "$HOME/ld-releases/bootstrap"
 }
 [ -L "$HOME/ld-current" ] || ln -s "$HOME/ld-releases/bootstrap" "$HOME/ld-current"
 [ -d "$HOME/ld-current/" ] || fail "ld-current is a broken symlink — its target release is gone; rm it and re-run"
+
+# Shared household state into the live release — the updater does this for
+# every release it builds, but the bootstrap release predates the updater,
+# and the viewer unit reads ld-current/.env.
+for name in .env data banners; do
+  ln -sfn "$HOME/ld-data/$name" "$HOME/ld-current/$name"
+done
 
 # The live release must be runnable: the updater binary runs from ld-current,
 # and the viewer serves from its dist/. On a first run that IS the bootstrap

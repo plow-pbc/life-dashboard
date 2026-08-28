@@ -52,6 +52,7 @@ loginctl enable-linger $USER   # FIRST: without lingering, --user units silently
 git clone https://github.com/<org>/<household-repo>.git ~/ld-releases/bootstrap
 ln -s ~/ld-releases/bootstrap ~/ld-current
 mkdir -p ~/ld-data/data ~/ld-data/banners   # plus ~/ld-data/.env (see repo README)
+for name in .env data banners; do ln -sfn ~/ld-data/$name ~/ld-releases/bootstrap/$name; done
 cd ~/ld-releases/bootstrap && npm ci && npm run build
 cp life-dashboard-viewer.service life-kiosk-viewer.service updater/life-dashboard-updater.* ~/.config/systemd/user/
 systemctl --user daemon-reload
