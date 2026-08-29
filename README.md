@@ -38,6 +38,33 @@ template/main && git push` (the updater deploys the merge like any other push).
 
 ## Bring-up on a fresh Pi
 
+One sudo step (the toolchain), then one script. Two modes, chosen by how the
+script is called; in both, the script is idempotent — re-running repairs a
+partial install and never clobbers `~/ld-data/`.
+
+### Paired with Plow (no tailnet, no fork)
+
+The Pi tracks this template's `main`, polls its cards from the Plow kiosk
+store, and reports its deploy status upstream — it never accepts a connection.
+The household's agent mints a pairing code and texts the owner these two
+lines, which are the owner's whole contribution:
+
+```sh
+sudo apt install -y nodejs npm git chromium fonts-noto-color-emoji
+curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/updater/bootstrap.sh | sh -s -- --pair ABC123
+```
+
+`--pair` redeems the code once (`POST $PLOW_API_BASE/v1/kiosks/pair`, default
+`https://api.plow.co`; a used or expired code fails loudly) and writes
+`~/ld-data/.env` — `KIOSK_REMOTE_URL`, `KIOSK_STATUS_URL`, and
+`DASHBOARD_TOKEN` holding the kiosk's read token, mode 600 — then proceeds
+exactly as the fork mode below. An `.env` that already holds
+`KIOSK_REMOTE_URL` skips the pair. What remote store mode changes about the
+viewer and updater's behavior is documented in `.env.example` and
+[`docs/app-notes.md` § Configuration](docs/app-notes.md#configuration).
+
+### Household fork (LAN or tailnet producers)
+
 1. Install the toolchain: `/usr/bin/node` ≥ 20.6 (both units and the updater
    hardcode that path; the `--env-file` flag needs 20.6) and Chromium at
    `/usr/bin/chromium` — on Raspberry Pi OS, `sudo apt install nodejs chromium`
@@ -46,23 +73,23 @@ template/main && git push` (the updater deploys the merge like any other push).
    nothing to provision. Private: give the Pi a read-only credential
    (`updater/README.md` § Git auth).
 3. One-shot install — lingering, `~/ld-data/`, bootstrap release + build,
-   all three user units, started (idempotent; `updater/README.md` § Bootstrap
-   has the by-hand equivalent, and git auth only matters for a private repo).
-   The Pi has no clone yet, so fetch the script by cloning to a scratch path
-   and run it from there:
+   all three user units, started (`updater/README.md` § Bootstrap has the
+   by-hand equivalent, and git auth only matters for a private repo):
    ```sh
-   HOUSEHOLD=https://github.com/<you>/life-dashboard-<household>.git
-   SCRATCH=$(mktemp -d)
-   git clone --depth 1 "$HOUSEHOLD" "$SCRATCH/repo"
-   sh "$SCRATCH/repo/updater/bootstrap.sh" "$HOUSEHOLD"
-   rm -rf "$SCRATCH"
+   curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/updater/bootstrap.sh \
+     | sh -s -- https://github.com/<you>/life-dashboard-<household>.git
    ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
-   (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
-   APIs and the off-box `/api/version` verification read;
-   `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
-   they are never in any repo. Then `systemctl --user restart
-   life-dashboard-viewer`.
+   (`DASHBOARD_TOKEN` enables the remote message/photo APIs and the off-box
+   `/api/version` verification read; `PINCH_DATA_FILE` enables the recipe
+   tile). Secrets stay on the Pi — they are never in any repo.
+
+### Either mode: the calendar
+
+`ICAL_URL` is the owner's private ICS URL and is never minted for them: add it
+to `~/ld-data/.env` whenever it is available and run `systemctl --user restart
+life-dashboard-viewer`. Until then the cards render and the calendar area
+shows "Can't reach calendar".
 
 ## The agent's deploy contract
 
@@ -75,10 +102,14 @@ template/main && git push` (the updater deploys the merge like any other push).
   export GIT_SSH_COMMAND='ssh -i <state>/ld-dev/ssh/deploy_key -o IdentitiesOnly=yes \
     -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
   ```
-- **Verify via `GET /api/version`** with the household bearer
-  (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
-  → `{sha, deployedAt}`. Success is a live SHA match; anything else, read
-  `~/ld-releases/state/last-result.json`.
+
+- **Verify the deploy.** In fork mode, `GET /api/version` with the household
+  bearer (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401
+  without it) → `{sha, deployedAt}`; success is a live SHA match. In paired
+  mode the Pi binds loopback only, so verification instead reads the
+  updater's own report: `GET /v1/kiosks/{uid}` on Plow returns the last
+  `KIOSK_STATUS_URL` PUT (`{sha, deployed_at, last_result}`). Either way,
+  anything else, read `~/ld-releases/state/last-result.json`.
 - **SSH is for diagnosis and repair** (journal reads, `systemctl --user
   restart life-dashboard-viewer`, updater state, fixing live state) — never
   the deploy path: viewer-code changes ride the push, not the shell.

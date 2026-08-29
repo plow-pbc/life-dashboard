@@ -4,6 +4,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './src/server/app.js';
 import { createFileStore } from './src/server/store.js';
+import { createCardPoller, DEFAULT_TTL_MS } from './src/server/remote.js';
 import { createBannerStore } from './src/server/banners.js';
 import { JsonStore } from './src/server/pinch/store.js';
 
@@ -13,17 +14,26 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
+// ICAL_URL is the owner's to supply, possibly after bring-up (a paired Pi has
+// cards before it has a calendar): blank means /api/ical answers 502 and the
+// client shows its "Can't reach calendar" state, not a dead viewer.
 const ICAL_URL = process.env.ICAL_URL;
-if (!ICAL_URL) {
-  console.error('FATAL: ICAL_URL is required (set it in .env)');
-  process.exit(1);
-}
+if (!ICAL_URL) console.warn('ICAL_URL unset — the calendar stays empty until it is set in .env.');
 
 const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN;
+// Remote store mode: cards live in the Plow kiosk store and DASHBOARD_TOKEN is
+// the kiosk's READ token. The Pi accepts no connection in this mode — loopback
+// bind, no producer writes, no banner CRUD (updater/README.md § Status).
+const KIOSK_REMOTE_URL = process.env.KIOSK_REMOTE_URL;
+const remoteMode = Boolean(KIOSK_REMOTE_URL);
+if (remoteMode && !DASHBOARD_TOKEN) {
+  console.error('FATAL: KIOSK_REMOTE_URL is set but DASHBOARD_TOKEN (the kiosk read token) is not');
+  process.exit(1);
+}
 // One switch gates the whole remote-write surface (message API + banner CRUD)
 // and the 0.0.0.0 bind below.
-const remoteWritesEnabled = Boolean(DASHBOARD_TOKEN);
-if (!remoteWritesEnabled) {
+const remoteWritesEnabled = Boolean(DASHBOARD_TOKEN) && !remoteMode;
+if (!remoteWritesEnabled && !remoteMode) {
   console.warn('Remote writes disabled (set DASHBOARD_TOKEN to enable the message + banner APIs).');
 }
 
@@ -56,8 +66,28 @@ try {
   if (err.code !== 'ENOENT') throw err;
 }
 
+// Redirects are refused (the kiosk-protocol rule for bearers on the wire) so a
+// 30x can never forward the read token elsewhere.
+const fetchCards = async () => {
+  const res = await fetch(KIOSK_REMOTE_URL, {
+    headers: { authorization: `Bearer ${DASHBOARD_TOKEN}` },
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`remote store HTTP ${res.status}`);
+  return (await res.json()).cards;
+};
+const messageStore = remoteMode
+  ? createCardPoller({ fetchCards, store: await createFileStore('./data/messages.json') })
+  : remoteWritesEnabled
+    ? await createFileStore('./data/messages.json')
+    : undefined;
+// Background tick keeps the wall warm between page loads; reads coalesce on it.
+if (remoteMode) setInterval(() => messageStore.refresh(), DEFAULT_TTL_MS).unref();
+
 const app = createApp({
   fetchUpstream: async () => {
+    if (!ICAL_URL) throw new Error('ICAL_URL unset');
     const res = await fetch(ICAL_URL, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`Upstream returned HTTP ${res.status}`);
     return await res.text();
@@ -78,7 +108,8 @@ const app = createApp({
       .map((e) => e.name)
       .sort();
   },
-  messageStore: remoteWritesEnabled ? await createFileStore('./data/messages.json') : undefined,
+  messageStore,
+  messageReadOnly: remoteMode,
   // Texted-photo CRUD writes into the same ./banners/ dir listBanners reads +
   // /banners/* serves. Gated behind the same DASHBOARD_TOKEN as the message API.
   bannerStore: remoteWritesEnabled ? createBannerStore(BANNER_DIR) : undefined,

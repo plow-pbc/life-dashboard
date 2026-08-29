@@ -28,3 +28,18 @@ export function vevent(fields: Record<string, string>): string {
   lines.push('END:VEVENT');
   return lines.join('\r\n');
 }
+
+/** In-memory stand-in for createFileStore: same get/put/replace contract. */
+export function memStore(initial: Record<string, unknown> = {}) {
+  let byCard = { ...initial };
+  return {
+    get: async (card: string) => byCard[card] ?? null,
+    put: async (message: { card: string }) => {
+      byCard[message.card] = message;
+    },
+    replace: async (snapshot: Record<string, unknown>) => {
+      byCard = { ...snapshot };
+    },
+    _peek: () => ({ ...byCard }),
+  };
+}
