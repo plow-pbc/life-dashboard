@@ -13,6 +13,147 @@ function appWith(fetcher, opts = {}) {
   });
 }
 
+const validFeed = {
+  generated_at: '2026-08-29T04:00:00Z',
+  window_days: 7,
+  events: [
+    {
+      uid: 'event-1',
+      title: 'Dinner',
+      start: '2026-08-29T18:00:00-07:00',
+      end: '2026-08-29T19:00:00-07:00',
+      isAllDay: false,
+      location: null,
+    },
+  ],
+};
+
+function documentStore(initial = null) {
+  let document = initial;
+  return {
+    get: async () => document,
+    replace: async (next) => {
+      document = next;
+    },
+  };
+}
+
+function calendarApp({ store = documentStore(), token = 'tok', remote = '127.0.0.1' } = {}) {
+  return appWith(vi.fn(), {
+    calendarStore: store,
+    messageToken: token,
+    getRemote: () => remote,
+  });
+}
+
+describe('/api/calendar routes', () => {
+  it('accepts a valid feed and GET returns the replacement document', async () => {
+    const app = calendarApp();
+    const post = await app.fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify(validFeed),
+      }),
+    );
+    expect(post.status).toBe(200);
+
+    const get = await app.fetch(new Request('http://localhost/api/calendar'));
+    expect(get.status).toBe(200);
+    expect(await get.json()).toEqual(validFeed);
+  });
+
+  it('accepts date-only all-day events', async () => {
+    const body = {
+      ...validFeed,
+      events: [
+        {
+          ...validFeed.events[0],
+          start: '2026-08-30',
+          end: '2026-08-31',
+          isAllDay: true,
+        },
+      ],
+    };
+    const res = await calendarApp().fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it.each([
+    null,
+    {},
+    { ...validFeed, generated_at: 'yesterday' },
+    { ...validFeed, generated_at: '2026-02-31T04:00:00Z' },
+    { ...validFeed, window_days: 0 },
+    { ...validFeed, events: [{ ...validFeed.events[0], start: 'not-a-time' }] },
+    { ...validFeed, events: [{ ...validFeed.events[0], location: 42 }] },
+    { ...validFeed, events: [{ ...validFeed.events[0], attendee: 'private' }] },
+    'not json',
+  ])('rejects invalid feed %j with 422', async (body) => {
+    const res = await calendarApp().fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        headers: auth(),
+        body: body === 'not json' ? body : JSON.stringify(body),
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it('requires the bearer for POST', async () => {
+    const res = await calendarApp().fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        body: JSON.stringify(validFeed),
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 before a feed has been pushed', async () => {
+    const res = await calendarApp().fetch(new Request('http://localhost/api/calendar'));
+    expect(res.status).toBe(404);
+  });
+
+  it('does not mount without the dashboard token', async () => {
+    const res = await calendarApp({ token: '' }).fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        body: JSON.stringify(validFeed),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it.each(['PUT', 'PATCH', 'DELETE'])('%s returns 405', async (method) => {
+    const res = await calendarApp().fetch(
+      new Request('http://localhost/api/calendar', { method, headers: auth() }),
+    );
+    expect(res.status).toBe(405);
+  });
+
+  it('allows a remote POST with the bearer but keeps GET loopback-only', async () => {
+    const app = calendarApp({ remote: '192.168.1.50' });
+    const post = await app.fetch(
+      new Request('http://pi-host/api/calendar', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify(validFeed),
+      }),
+    );
+    expect(post.status).toBe(200);
+
+    const get = await app.fetch(new Request('http://pi-host/api/calendar', { headers: auth() }));
+    expect(get.status).toBe(403);
+  });
+});
+
 describe('createApp', () => {
   it('healthz returns 200 ok', async () => {
     const app = appWith(vi.fn());
@@ -56,18 +197,21 @@ describe('createApp', () => {
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
-    it('serves stale cache when upstream fails after ttl', async () => {
+    it.each([
+      ['serves stale cache without a pushed-feed store', undefined, 200, 'GOOD'],
+      ['does not serve stale cache with a pushed-feed store', documentStore(), 502, null],
+    ])('%s when upstream fails after ttl', async (_, calendarStore, status, body) => {
       const fetcher = vi
         .fn()
         .mockResolvedValueOnce('GOOD')
         .mockRejectedValueOnce(new Error('network down'));
       let t = 1_000_000;
-      const app = appWith(fetcher, { ttlMs: 60_000, now: () => t });
+      const app = appWith(fetcher, { calendarStore, ttlMs: 60_000, now: () => t });
       await app.fetch(new Request(url));
       t += 90_000;
       const res = await app.fetch(new Request(url));
-      expect(res.status).toBe(200);
-      expect(await res.text()).toBe('GOOD');
+      expect(res.status).toBe(status);
+      if (body) expect(await res.text()).toBe(body);
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 

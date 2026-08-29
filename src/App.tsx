@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { parseICS } from './ical';
-import type { Event } from './types';
+import { loadCalendarEvents, type CalendarResult } from './calendar';
 import { Banner } from './components/Banner';
 import { EventRow } from './components/EventRow';
 import { Message } from './components/Message';
@@ -14,10 +13,7 @@ const REFRESH_MS = Number(__REFRESH_MS__);
 // independently from the local store (see /api/message in src/server/app.js).
 // Empty cards still render — the kiosk layout stays at fixed dimensions all
 // day, no reflow when a message arrives.
-type State =
-  | { kind: 'loading' }
-  | { kind: 'ready'; events: Event[] }
-  | { kind: 'error' };
+type State = { kind: 'loading' } | CalendarResult;
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -29,15 +25,8 @@ export function App() {
     let cancelled = false;
 
     (async () => {
-      try {
-        const res = await fetch('api/ical');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        const events = parseICS(text, new Date(), NEXT_N);
-        if (!cancelled) setState({ kind: 'ready', events });
-      } catch {
-        if (!cancelled) setState({ kind: 'error' });
-      }
+      const result = await loadCalendarEvents(fetch, new Date(), NEXT_N, 30 * 60_000);
+      if (!cancelled) setState(result);
     })();
 
     for (const card of CARDS) {
@@ -87,6 +76,15 @@ export function App() {
               ))}
             </ul>
           ))}
+        {state.kind === 'ready' && state.staleGeneratedAt && (
+          <p className="calendar-updated">
+            Last updated{' '}
+            {state.staleGeneratedAt.toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
       </section>
     </main>
   );
