@@ -70,15 +70,6 @@ describe('createFileStore', () => {
     expect(await store.get('1')).toEqual({ card: '1', type: 'alert', text: 'recovered' });
   });
 
-  it('replace() drops keys absent from the snapshot', async () => {
-    const store = await createFileStore(await freshPath());
-    await store.put({ card: '1', type: 'alert', text: 'first' });
-    await store.put({ card: '4', type: 'digest', text: 'weekly' });
-    await store.replace({ 1: { card: '1', type: 'alert', text: 'refreshed' } });
-    expect(await store.get('1')).toEqual({ card: '1', type: 'alert', text: 'refreshed' });
-    expect(await store.get('4')).toBeNull();
-  });
-
   it('get("constructor") returns null on a fresh store', async () => {
     const store = await createFileStore(await freshPath());
     expect(await store.get('constructor')).toBeNull();

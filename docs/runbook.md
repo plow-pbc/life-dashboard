@@ -89,10 +89,7 @@ Owned by [`README.md` § Bring-up on a fresh Pi](../README.md#bring-up-on-a-fres
 install the toolchain (`/usr/bin/node` ≥ 20.6, Chromium — the one sudo
 step), then the one-shot does the rest — lingering, `~/ld-data/`, bootstrap
 clone + build of the **household fork**, all three systemd **user** units,
-started; idempotent, so re-running repairs a partial install. This is the
-**household fork** path; a Plow-paired Pi (no fork, no tailnet) instead runs
-`bootstrap.sh --pair <code>` per
-[`README.md` § Paired with Plow](../README.md#paired-with-plow-no-tailnet-no-fork):
+started; idempotent, so re-running repairs a partial install:
 
 ```sh
 HOUSEHOLD=https://github.com/<you>/life-dashboard-<household>.git

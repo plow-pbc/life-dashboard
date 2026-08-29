@@ -109,10 +109,6 @@ export async function run(deps = {}) {
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     now = () => new Date(),
     log = (m) => console.log(m),
-    statusTimeoutMs = 10_000,
-    // Unit runs with --env-file=%h/ld-current/.env (mirrors the viewer unit);
-    // KIOSK_STATUS_URL / DASHBOARD_TOKEN are then plain process.env reads.
-    env = process.env,
   } = deps;
 
   const releases = join(home, 'ld-releases');
@@ -120,51 +116,12 @@ export async function run(deps = {}) {
   const current = join(home, 'ld-current');
   await mkdir(stateDir, { recursive: true });
 
-  // Remote store mode: report every run to the Plow kiosk store — a flip, a
-  // rollback, a noop tick — so the freshest report doubles as "the Pi is
-  // alive" and the agent diagnoses without SSH. Diagnosis, never the deploy:
-  // any failure is one log line and the run's result stands.
-  const reportStatus = async (lastResult) => {
-    if (!env.KIOSK_STATUS_URL || !env.DASHBOARD_TOKEN) return;
-    try {
-      const live = await readlink(current);
-      // Only ENOENT means "no stamp yet" (a fresh bootstrap release, before
-      // the first flip) — same convention as server.js's version.json read:
-      // a present-but-corrupt stamp fails loudly instead of silently
-      // reporting a null sha.
-      const stamp = JSON.parse(
-        await readFile(join(live, 'version.json'), 'utf8').catch((err) => {
-          if (err.code === 'ENOENT') return '{}';
-          throw err;
-        }),
-      );
-      const res = await doFetch(env.KIOSK_STATUS_URL, {
-        method: 'PUT',
-        headers: {
-          authorization: `Bearer ${env.DASHBOARD_TOKEN}`,
-          'content-type': 'application/json',
-        },
-        redirect: 'error',
-        signal: AbortSignal.timeout(statusTimeoutMs),
-        body: JSON.stringify({
-          sha: stamp.sha ?? null,
-          deployed_at: stamp.deployedAt ?? null,
-          last_result: lastResult,
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      log(`updater: status report failed — ${err.message}`);
-    }
-  };
-
   const finish = async (code, result) => {
-    const record = { at: now().toISOString(), ok: code === 0, ...result };
-    await writeFile(join(stateDir, 'last-result.json'), JSON.stringify(record, null, 2) + '\n');
-    log(
-      `updater: ${result.action} (${result.sha ?? 'no sha'})${result.detail ? ` — ${result.detail}` : ''}`,
+    await writeFile(
+      join(stateDir, 'last-result.json'),
+      JSON.stringify({ at: now().toISOString(), ok: code === 0, ...result }, null, 2) + '\n',
     );
-    await reportStatus(record);
+    log(`updater: ${result.action} (${result.sha ?? 'no sha'})${result.detail ? ` — ${result.detail}` : ''}`);
     return code;
   };
 
@@ -208,12 +165,7 @@ export async function run(deps = {}) {
     if (existsSync(source)) await symlink(source, join(releaseDir, name));
   }
 
-  for (const argv of [
-    ['git', 'checkout', sha],
-    ['npm', 'ci'],
-    ['npm', 'run', 'build'],
-    ['npm', 'test'],
-  ]) {
+  for (const argv of [['git', 'checkout', sha], ['npm', 'ci'], ['npm', 'run', 'build'], ['npm', 'test']]) {
     const res = await exec(argv, { cwd: releaseDir });
     if (res.code !== 0)
       return fail('build-failed', `${argv.join(' ')}: ${tail(res.stderr || res.stdout)}`);
