@@ -38,6 +38,12 @@ template/main && git push` (the updater deploys the merge like any other push).
 
 ## Bring-up on a fresh Pi
 
+A household that has forked this repo follows the numbered steps below
+against its own fork. A household with no fork instead tracks this
+template's `main` directly, and the agent runs these same bring-up steps
+through Latch on the owner's Mac rather than the owner running them by
+hand — see the life-assistant `ld-setup` skill for that flow.
+
 1. Install the toolchain: `/usr/bin/node` ≥ 20.6 (both units and the updater
    hardcode that path; the `--env-file` flag needs 20.6) and Chromium at
    `/usr/bin/chromium` — on Raspberry Pi OS, `sudo apt install nodejs chromium`
