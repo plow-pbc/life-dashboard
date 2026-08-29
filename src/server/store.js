@@ -1,6 +1,22 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+function createWriteQueue(path, commit) {
+  let writes = Promise.resolve();
+  return (buildNext) => {
+    const write = async () => {
+      const next = buildNext();
+      const tmp = `${path}.tmp`;
+      await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
+      await rename(tmp, path);
+      commit(next);
+    };
+    const pending = writes.then(write);
+    writes = pending.catch(() => {});
+    return pending;
+  };
+}
+
 // Latest message per card slot: a chatty producer can never evict another
 // card's content. The whole store is one small JSON object held in memory and
 // rewritten atomically on every put — single process, tiny payload, no locking
@@ -13,26 +29,11 @@ export async function createFileStore(path) {
   } catch (err) {
     if (err.code !== 'ENOENT') throw err; // corrupt file should fail loud, not wipe
   }
-  // Serialize writes: two concurrent writes share the same .tmp path; the
-  // loser's rename would throw (tmp already moved by the winner). Chain on a
-  // single promise so each write waits for the previous one to finish.
-  let writes = Promise.resolve();
-  // `buildNext` computes the map to persist from the current `byCard` —
-  // put() merges one key in, replace() swaps the whole thing.
-  const queueWrite = (buildNext) => {
-    const write = async () => {
-      const next = buildNext();
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
-      await rename(tmp, path);
-      byCard = next;
-    };
-    const p = writes.then(write);
-    // Swallow rejections on the shared tail so a failed write still rejects
-    // to its own caller (via p) without poisoning the chain for the next call.
-    writes = p.catch(() => {});
-    return p;
-  };
+  // `buildNext` runs inside the shared write queue so concurrent updates see
+  // the latest committed value and never race on the one .tmp path.
+  const queueWrite = createWriteQueue(path, (next) => {
+    byCard = next;
+  });
   return {
     async get(card) {
       return Object.prototype.hasOwnProperty.call(byCard, card) ? byCard[card] : null;
@@ -60,15 +61,15 @@ export async function createDocumentStore(path) {
   } catch (err) {
     if (err.code !== 'ENOENT') throw err;
   }
+  const queueWrite = createWriteQueue(path, (next) => {
+    document = next;
+  });
   return {
     async get() {
       return document;
     },
-    async replace(next) {
-      const tmp = `${path}.tmp`;
-      await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
-      await rename(tmp, path);
-      document = next;
+    replace(next) {
+      return queueWrite(() => next);
     },
   };
 }

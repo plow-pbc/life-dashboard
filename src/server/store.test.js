@@ -122,4 +122,16 @@ describe('createDocumentStore', () => {
     const { stat } = await import('node:fs/promises');
     expect((await stat(path)).mode & 0o077).toBe(0);
   });
+
+  it('serializes concurrent replacements that share the temporary path', async () => {
+    const store = await createDocumentStore(await freshPath());
+    const first = { generated_at: 'first', events: [{ uid: 'old' }] };
+    const second = { generated_at: 'second', events: [] };
+
+    await expect(Promise.all([store.replace(first), store.replace(second)])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(await store.get()).toEqual(second);
+  });
 });

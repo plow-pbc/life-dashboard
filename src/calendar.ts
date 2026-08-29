@@ -2,8 +2,6 @@ import { parseICS } from './ical';
 import type { Event } from './types';
 
 type Fetcher = (input: string) => Promise<Response>;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 type FeedEvent = {
   uid: string;
@@ -57,8 +55,7 @@ async function fetchFeed(fetcher: Fetcher): Promise<CalendarFeed | null> {
   try {
     const response = await fetcher('api/calendar');
     if (!response.ok) return null;
-    const body: unknown = await response.json();
-    return isCalendarFeed(body) ? body : null;
+    return (await response.json()) as CalendarFeed;
   } catch {
     return null;
   }
@@ -68,57 +65,15 @@ function feedEvents(feed: CalendarFeed, now: Date, n: number): Event[] {
   return feed.events
     .map((event) => ({
       ...event,
-      start: new Date(event.start),
-      end: new Date(event.end),
+      start: parseFeedDate(event.start),
+      end: parseFeedDate(event.end),
     }))
     .filter((event) => event.end >= now)
     .slice(0, n);
 }
 
-function isCalendarFeed(value: unknown): value is CalendarFeed {
-  if (!isObject(value)) return false;
-  if (!isDateTime(value.generated_at)) return false;
-  if (
-    typeof value.window_days !== 'number' ||
-    !Number.isInteger(value.window_days) ||
-    value.window_days <= 0
-  ) {
-    return false;
-  }
-  if (!Array.isArray(value.events)) return false;
-  return value.events.every(isFeedEvent);
-}
-
-function isFeedEvent(value: unknown): value is FeedEvent {
-  if (!isObject(value)) return false;
-  if (typeof value.isAllDay !== 'boolean') return false;
-  const datesValid = value.isAllDay
-    ? isDate(value.start) && isDate(value.end)
-    : isDateTime(value.start) && isDateTime(value.end);
-  return (
-    typeof value.uid === 'string' &&
-    typeof value.title === 'string' &&
-    datesValid &&
-    (value.location === null || typeof value.location === 'string') &&
-    (value.calendar === null || typeof value.calendar === 'string')
-  );
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isDate(value: unknown): value is string {
-  if (typeof value !== 'string' || !DATE.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
-function isDateTime(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    DATE_TIME.test(value) &&
-    isDate(value.slice(0, 10)) &&
-    !Number.isNaN(Date.parse(value))
-  );
+function parseFeedDate(value: string): Date {
+  if (value.includes('T')) return new Date(value);
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }

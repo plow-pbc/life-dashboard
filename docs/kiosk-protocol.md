@@ -41,6 +41,21 @@ The JSON body is identical in both modes.
   refused so a 30x can't forward the Authorization header. The shared
   `scripts/post_to_kiosk.py` helper enforces both — producers post through it.
 
+## Calendar feed transport
+
+The pushed calendar feed has no paired-mode Plow relay. It reaches the Pi only
+through its direct remote-write surface:
+
+    POST http://<pi>:5174/api/calendar
+    Authorization: Bearer <DASHBOARD_TOKEN>
+    Content-Type: application/json
+
+That surface exists when `DASHBOARD_TOKEN` is set and `KIOSK_REMOTE_URL` is
+blank, which makes the viewer bind `0.0.0.0`. Paired installs force the viewer
+to loopback even though they hold a kiosk read token; tokenless local installs
+also bind loopback. Neither can receive this POST, so both use `ICAL_URL` for
+their calendar.
+
 ## Card map
 
 | card | type | producer | body |

@@ -84,14 +84,19 @@ viewer and updater's behavior is documented in `.env.example` and
    `/api/version` verification read; `PINCH_DATA_FILE` enables the recipe
    tile). Secrets stay on the Pi — they are never in any repo.
 
-### Either mode: the calendar
+### Calendar transport by install mode
 
-The Life agent pushes the household calendar feed to the bearer-gated
-`/api/calendar` endpoint. `ICAL_URL` remains an optional fallback: add the
-owner's private ICS URL to `~/ld-data/.env` whenever it is available and run
-`systemctl --user restart life-dashboard-viewer`. Without a usable pushed feed,
-a missing or unreachable ICS fallback leaves the cards rendering and the
-calendar area shows "Can't reach calendar".
+The Life agent can push the household calendar feed only when the Pi is in
+remote-write mode: `DASHBOARD_TOKEN` is set, `KIOSK_REMOTE_URL` is blank, and
+the viewer therefore binds `0.0.0.0`. The agent posts directly to the
+bearer-gated `/api/calendar` endpoint.
+
+A paired install always binds loopback, and the Plow kiosk store has no calendar
+feed relay. A tokenless local install also binds loopback. Neither can receive a
+pushed feed; `ICAL_URL` is their calendar path. Add the owner's private ICS URL
+to `~/ld-data/.env` and run `systemctl --user restart life-dashboard-viewer`.
+Without a usable pushed feed or reachable ICS fallback, the cards continue to
+render and the calendar area shows "Can't reach calendar".
 
 ## The agent's deploy contract
 
