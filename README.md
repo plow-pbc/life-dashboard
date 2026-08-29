@@ -64,7 +64,8 @@ hand — see the life-assistant `ld-setup` skill for that flow.
    rm -rf "$SCRATCH"
    ```
 4. Write `~/ld-data/.env` from the keys documented in `.env.example`
-   (`ICAL_URL` is required; `DASHBOARD_TOKEN` enables the remote message/photo
+   (`ICAL_URL` is optional — blank leaves the calendar tile in its
+   unreachable state; `DASHBOARD_TOKEN` enables the remote message/photo
    APIs and the off-box `/api/version` verification read;
    `PINCH_DATA_FILE` enables the recipe tile). Secrets stay on the Pi —
    they are never in any repo. Then `systemctl --user restart

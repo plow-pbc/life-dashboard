@@ -13,9 +13,9 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
-// ICAL_URL is the owner's to supply, possibly after bring-up (a paired Pi has
-// cards before it has a calendar): blank means /api/ical answers 502 and the
-// client shows its "Can't reach calendar" state, not a dead viewer.
+// ICAL_URL is the owner's to supply, possibly after initial bring-up: blank
+// means /api/ical answers 502 and the client shows its "Can't reach
+// calendar" state, not a dead viewer.
 const ICAL_URL = process.env.ICAL_URL;
 if (!ICAL_URL) console.warn('ICAL_URL unset — the calendar stays empty until it is set in .env.');
 
