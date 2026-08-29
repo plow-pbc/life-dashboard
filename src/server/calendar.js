@@ -1,5 +1,5 @@
 const FEED_KEYS = new Set(['generated_at', 'window_days', 'events']);
-const EVENT_KEYS = new Set(['uid', 'title', 'start', 'end', 'isAllDay', 'location', 'calendar']);
+const EVENT_KEYS = new Set(['uid', 'title', 'start', 'end', 'isAllDay', 'location']);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -25,8 +25,7 @@ function isCalendarEvent(value) {
     typeof value.title === 'string' &&
     datesValid &&
     typeof value.isAllDay === 'boolean' &&
-    (value.location === null || typeof value.location === 'string') &&
-    (value.calendar === null || typeof value.calendar === 'string')
+    (value.location === null || typeof value.location === 'string')
   );
 }
 

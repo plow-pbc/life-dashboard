@@ -115,7 +115,9 @@ export function createApp({
     c.json({ sha: version?.sha ?? null, deployedAt: version?.deployedAt ?? null }),
   );
 
-  // /api/ical: proxies the upstream ICS with a single-slot 60s cache (stale-on-error).
+  // /api/ical: proxies the upstream ICS with a single-slot 60s cache. Installs
+  // without a pushed feed serve that cache stale on error; direct-write mode
+  // returns the error so the viewer can fall through to its stale pushed feed.
   let cached = null;
   app.get('/api/ical', async (c) => {
     const t = now();
@@ -127,13 +129,13 @@ export function createApp({
       cached = { body, fetchedAt: t };
       return c.body(body, 200, { 'content-type': 'text/calendar; charset=utf-8' });
     } catch {
-      if (cached)
+      if (cached && !calendarStore)
         return c.body(cached.body, 200, { 'content-type': 'text/calendar; charset=utf-8' });
       return c.text('Upstream unreachable', 502);
     }
   });
 
-  if (messageToken && calendarStore && !messageReadOnly) {
+  if (messageToken && calendarStore) {
     app.get('/api/calendar', async (c) => {
       const feed = await calendarStore.get();
       return feed ? c.json(feed) : c.text('not found', 404);

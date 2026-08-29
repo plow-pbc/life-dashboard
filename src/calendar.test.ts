@@ -15,7 +15,6 @@ const feed = {
       end: '2026-08-29T11:00:00-07:00',
       isAllDay: false,
       location: 'Kitchen',
-      calendar: null,
     },
   ],
 };

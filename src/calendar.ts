@@ -10,7 +10,6 @@ type FeedEvent = {
   end: string;
   isAllDay: boolean;
   location: string | null;
-  calendar: string | null;
 };
 
 type CalendarFeed = {

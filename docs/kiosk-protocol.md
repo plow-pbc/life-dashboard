@@ -60,8 +60,7 @@ through its direct remote-write surface:
           "start": "2026-08-29T18:00:00-07:00",
           "end": "2026-08-29T19:00:00-07:00",
           "isAllDay": false,
-          "location": null,
-          "calendar": null
+          "location": null
         }
       ]
     }
@@ -75,13 +74,13 @@ their calendar.
 The body has exactly the three top-level keys shown: `generated_at` is an
 RFC3339 date-time with seconds and an explicit offset (`Z` is accepted),
 and fractional seconds are accepted. `window_days` is an integer greater than
-zero, and `events` is an array. Every event has exactly the seven keys shown.
+zero, and `events` is an array. Every event has exactly the six keys shown.
 `uid` is a non-empty string, `title` is a string, and `isAllDay` is a boolean.
 For timed events, `start` and `end` are RFC3339 date-times with seconds and an
 explicit offset; fractional seconds are accepted. For all-day events, both are
 date-only `YYYY-MM-DD` values.
-`location` and `calendar` are each either a string or `null`. Missing or extra
-keys and any other field shape are rejected with 422.
+`location` is either a string or `null`. Missing or extra keys and any other
+field shape are rejected with 422.
 
 ## Card map
 

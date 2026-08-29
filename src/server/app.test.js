@@ -24,7 +24,6 @@ const validFeed = {
       end: '2026-08-29T19:00:00-07:00',
       isAllDay: false,
       location: null,
-      calendar: null,
     },
   ],
 };
@@ -39,16 +38,10 @@ function documentStore(initial = null) {
   };
 }
 
-function calendarApp({
-  store = documentStore(),
-  token = 'tok',
-  remote = '127.0.0.1',
-  readOnly = false,
-} = {}) {
+function calendarApp({ store = documentStore(), token = 'tok', remote = '127.0.0.1' } = {}) {
   return appWith(vi.fn(), {
     calendarStore: store,
     messageToken: token,
-    messageReadOnly: readOnly,
     getRemote: () => remote,
   });
 }
@@ -70,7 +63,7 @@ describe('/api/calendar routes', () => {
     expect(await get.json()).toEqual(validFeed);
   });
 
-  it('accepts date-only all-day events and a calendar identifier', async () => {
+  it('accepts date-only all-day events', async () => {
     const body = {
       ...validFeed,
       events: [
@@ -79,7 +72,6 @@ describe('/api/calendar routes', () => {
           start: '2026-08-30',
           end: '2026-08-31',
           isAllDay: true,
-          calendar: 'family@example.com',
         },
       ],
     };
@@ -135,13 +127,6 @@ describe('/api/calendar routes', () => {
         method: 'POST',
         body: JSON.stringify(validFeed),
       }),
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('does not mount GET in paired mode', async () => {
-    const res = await calendarApp({ store: documentStore(validFeed), readOnly: true }).fetch(
-      new Request('http://localhost/api/calendar'),
     );
     expect(res.status).toBe(404);
   });
@@ -224,6 +209,26 @@ describe('createApp', () => {
       const res = await app.fetch(new Request(url));
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('GOOD');
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not serve an expired ICS cache when a pushed-feed store is present', async () => {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce('GOOD')
+        .mockRejectedValueOnce(new Error('network down'));
+      let t = 1_000_000;
+      const app = appWith(fetcher, {
+        calendarStore: documentStore(),
+        ttlMs: 60_000,
+        now: () => t,
+      });
+      await app.fetch(new Request(url));
+      t += 90_000;
+
+      const res = await app.fetch(new Request(url));
+
+      expect(res.status).toBe(502);
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
