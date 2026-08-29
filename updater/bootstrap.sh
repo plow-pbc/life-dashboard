@@ -8,8 +8,9 @@
 # bootstrap copy), as the kiosk user, no sudo — every unit is systemd --user.
 # Prerequisites it CHECKS but does not install (they need apt/sudo):
 # /usr/bin/node >= 20.6 and /usr/bin/chromium — README § Bring-up step 1.
-# After it finishes: write ~/ld-data/.env (ICAL_URL at minimum), then
-# `systemctl --user restart life-dashboard-viewer`.
+# After it finishes: ICAL_URL in ~/ld-data/.env is optional — add it later
+# to enable the calendar tile, then `systemctl --user restart
+# life-dashboard-viewer`.
 set -eu
 
 REPO_URL=${1:?usage: bootstrap.sh <household-repo-url>}
@@ -32,7 +33,7 @@ mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
 [ -f "$HOME/ld-data/.env" ] || {
   printf 'ICAL_URL=\n' > "$HOME/ld-data/.env"
   chmod 600 "$HOME/ld-data/.env"
-  echo "bootstrap: wrote empty ~/ld-data/.env — fill in ICAL_URL (see .env.example)"
+  echo "bootstrap: wrote empty ~/ld-data/.env — ICAL_URL is optional; add it later to enable the calendar tile (see .env.example)"
 }
 
 # -- bootstrap release + the ld-current symlink the units run from -------------
