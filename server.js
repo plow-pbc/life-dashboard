@@ -15,7 +15,7 @@ const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
 // ICAL_URL is the owner's optional fallback to the pushed feed: blank means
-// /api/ical answers 502, after which the client uses a stale feed or empty state.
+// /api/ical answers 502, after which the client uses a stale feed or its error state.
 const ICAL_URL = process.env.ICAL_URL;
 if (!ICAL_URL) console.warn('ICAL_URL unset — ICS fallback disabled.');
 
@@ -33,7 +33,9 @@ if (remoteMode && !DASHBOARD_TOKEN) {
 // and the 0.0.0.0 bind below.
 const remoteWritesEnabled = Boolean(DASHBOARD_TOKEN) && !remoteMode;
 if (!remoteWritesEnabled && !remoteMode) {
-  console.warn('Remote writes disabled (set DASHBOARD_TOKEN to enable the message + banner APIs).');
+  console.warn(
+    'Remote writes disabled (set DASHBOARD_TOKEN to enable the message + calendar + banner APIs).',
+  );
 }
 
 // The Cook Tonight tile reads a recipe snapshot this process never writes — an

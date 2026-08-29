@@ -89,8 +89,9 @@ viewer and updater's behavior is documented in `.env.example` and
 The Life agent pushes the household calendar feed to the bearer-gated
 `/api/calendar` endpoint. `ICAL_URL` remains an optional fallback: add the
 owner's private ICS URL to `~/ld-data/.env` whenever it is available and run
-`systemctl --user restart life-dashboard-viewer`. With neither source, the
-calendar shows its empty state and the cards continue to render.
+`systemctl --user restart life-dashboard-viewer`. Without a usable pushed feed,
+a missing or unreachable ICS fallback leaves the cards rendering and the
+calendar area shows "Can't reach calendar".
 
 ## The agent's deploy contract
 

@@ -21,10 +21,9 @@ type CalendarFeed = {
   events: FeedEvent[];
 };
 
-export type CalendarResult = {
-  events: Event[];
-  staleGeneratedAt: Date | null;
-};
+export type CalendarResult =
+  | { kind: 'ready'; events: Event[]; staleGeneratedAt: Date | null }
+  | { kind: 'error' };
 
 export async function loadCalendarEvents(
   fetcher: Fetcher,
@@ -34,22 +33,23 @@ export async function loadCalendarEvents(
 ): Promise<CalendarResult> {
   const feed = await fetchFeed(fetcher);
   if (feed && now.getTime() - Date.parse(feed.generated_at) < maxAgeMs) {
-    return { events: feedEvents(feed, n), staleGeneratedAt: null };
+    return { kind: 'ready', events: feedEvents(feed, now, n), staleGeneratedAt: null };
   }
 
   try {
     const response = await fetcher('api/ical');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const events = parseICS(await response.text(), now, n);
-    return { events, staleGeneratedAt: null };
+    return { kind: 'ready', events, staleGeneratedAt: null };
   } catch {
     if (feed) {
       return {
-        events: feedEvents(feed, n),
+        kind: 'ready',
+        events: feedEvents(feed, now, n),
         staleGeneratedAt: new Date(feed.generated_at),
       };
     }
-    return { events: [], staleGeneratedAt: null };
+    return { kind: 'error' };
   }
 }
 
@@ -64,12 +64,15 @@ async function fetchFeed(fetcher: Fetcher): Promise<CalendarFeed | null> {
   }
 }
 
-function feedEvents(feed: CalendarFeed, n: number): Event[] {
-  return feed.events.slice(0, n).map((event) => ({
-    ...event,
-    start: new Date(event.start),
-    end: new Date(event.end),
-  }));
+function feedEvents(feed: CalendarFeed, now: Date, n: number): Event[] {
+  return feed.events
+    .map((event) => ({
+      ...event,
+      start: new Date(event.start),
+      end: new Date(event.end),
+    }))
+    .filter((event) => event.end >= now)
+    .slice(0, n);
 }
 
 function isCalendarFeed(value: unknown): value is CalendarFeed {

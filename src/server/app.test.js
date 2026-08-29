@@ -123,6 +123,16 @@ describe('/api/calendar routes', () => {
     expect(res.status).toBe(404);
   });
 
+  it('does not mount without the dashboard token', async () => {
+    const res = await calendarApp({ token: '' }).fetch(
+      new Request('http://localhost/api/calendar', {
+        method: 'POST',
+        body: JSON.stringify(validFeed),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
   it.each(['PUT', 'PATCH', 'DELETE'])('%s returns 405', async (method) => {
     const res = await calendarApp().fetch(
       new Request('http://localhost/api/calendar', { method, headers: auth() }),

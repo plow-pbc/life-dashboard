@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { loadCalendarEvents } from './calendar';
-import type { Event } from './types';
+import { loadCalendarEvents, type CalendarResult } from './calendar';
 import { Banner } from './components/Banner';
 import { EventRow } from './components/EventRow';
 import { Message } from './components/Message';
@@ -15,9 +14,7 @@ const CALENDAR_FEED_MAX_AGE = Number(__CALENDAR_FEED_MAX_AGE__);
 // independently from the local store (see /api/message in src/server/app.js).
 // Empty cards still render — the kiosk layout stays at fixed dimensions all
 // day, no reflow when a message arrives.
-type State =
-  | { kind: 'loading' }
-  | { kind: 'ready'; events: Event[]; staleGeneratedAt: Date | null };
+type State = { kind: 'loading' } | CalendarResult;
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -30,7 +27,7 @@ export function App() {
 
     (async () => {
       const result = await loadCalendarEvents(fetch, new Date(), NEXT_N, CALENDAR_FEED_MAX_AGE);
-      if (!cancelled) setState({ kind: 'ready', ...result });
+      if (!cancelled) setState(result);
     })();
 
     for (const card of CARDS) {
@@ -67,6 +64,9 @@ export function App() {
         <header className="header">
           <h1>Life Calendar</h1>
         </header>
+        {state.kind === 'error' && (
+          <p className="error-state">Can't reach calendar — retrying soon.</p>
+        )}
         {state.kind === 'ready' &&
           (state.events.length === 0 ? (
             <p className="empty-state">No upcoming events.</p>

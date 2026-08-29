@@ -29,6 +29,7 @@ describe('loadCalendarEvents', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher).toHaveBeenCalledWith('api/calendar');
     expect(result).toEqual({
+      kind: 'ready',
       events: [
         {
           uid: 'feed-event',
@@ -62,12 +63,27 @@ describe('loadCalendarEvents', () => {
     const result = await loadCalendarEvents(fetcher, now, 12, 30 * 60_000);
 
     expect(fetcher.mock.calls).toEqual([['api/calendar'], ['api/ical']]);
+    expect(result.kind).toBe('ready');
+    if (result.kind !== 'ready') throw new Error('expected ready result');
     expect(result.events.map((event) => event.title)).toEqual(['From ICS fallback']);
     expect(result.staleGeneratedAt).toBeNull();
   });
 
   it('renders a stale feed with its generation time when ICS is unavailable', async () => {
-    const staleFeed = { ...feed, generated_at: '2026-08-29T03:00:00Z' };
+    const staleFeed = {
+      ...feed,
+      generated_at: '2026-08-29T03:00:00Z',
+      events: [
+        {
+          ...feed.events[0],
+          uid: 'ended',
+          title: 'Already ended',
+          start: '2026-08-28T19:00:00-07:00',
+          end: '2026-08-28T20:00:00-07:00',
+        },
+        ...feed.events,
+      ],
+    };
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(staleFeed)))
@@ -75,19 +91,58 @@ describe('loadCalendarEvents', () => {
 
     const result = await loadCalendarEvents(fetcher, now, 12, 30 * 60_000);
 
+    expect(result.kind).toBe('ready');
+    if (result.kind !== 'ready') throw new Error('expected ready result');
+    expect(result.events).toHaveLength(1);
     expect(result.events[0]?.title).toBe('From pushed feed');
     expect(result.staleGeneratedAt).toEqual(new Date('2026-08-29T03:00:00Z'));
   });
 
-  it('returns an empty result when neither a valid feed nor ICS is available', async () => {
+  it('returns an error when neither a valid feed nor ICS is available', async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response('{"events":"not-an-array"}'))
       .mockResolvedValueOnce(new Response('Upstream unreachable', { status: 502 }));
 
     await expect(loadCalendarEvents(fetcher, now, 12, 30 * 60_000)).resolves.toEqual({
+      kind: 'error',
+    });
+  });
+
+  it('returns a ready empty result when ICS succeeds with no upcoming events', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(new Response(calendar('')));
+
+    await expect(loadCalendarEvents(fetcher, now, 12, 30 * 60_000)).resolves.toEqual({
+      kind: 'ready',
       events: [],
       staleGeneratedAt: null,
     });
+  });
+
+  it('filters ended feed events before applying the display limit', async () => {
+    const freshFeed = {
+      ...feed,
+      events: [
+        {
+          ...feed.events[0],
+          uid: 'ended',
+          title: 'Already ended',
+          start: '2026-08-28T19:00:00-07:00',
+          end: '2026-08-28T20:00:00-07:00',
+        },
+        feed.events[0],
+        { ...feed.events[0], uid: 'later', title: 'Later event' },
+      ],
+    };
+    const fetcher = vi.fn(async () => new Response(JSON.stringify(freshFeed)));
+
+    const result = await loadCalendarEvents(fetcher, now, 1, 30 * 60_000);
+
+    expect(result.kind).toBe('ready');
+    if (result.kind !== 'ready') throw new Error('expected ready result');
+    expect(result.events.map((event) => event.title)).toEqual(['From pushed feed']);
   });
 });
