@@ -40,9 +40,7 @@ within the hour.
 | `ICAL_URL` | no | — | Full private ICS URL. Secret. Blank → `/api/ical` answers 502 and the client shows its "Can't reach calendar" state; cards still render. |
 | `NEXT_N` | no | `12` | Max events displayed. **Baked at build time** — rebuild to change. |
 | `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
-| `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and, in fork mode, the off-box `GET /api/version` verification read (see `KIOSK_REMOTE_URL` below for paired mode, which binds loopback only). Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
-| `KIOSK_REMOTE_URL` | no | — | Remote store mode: the Plow kiosk store's cards URL, written by `bootstrap.sh --pair`. `/api/message` is served from a 60 s poll of it (write-through to `data/messages.json` for last-good), `POST /api/message` answers 405, the server binds loopback only, and no banner CRUD mounts. `DASHBOARD_TOKEN` is then the kiosk read token. Blank = local mode, unchanged. |
-| `KIOSK_STATUS_URL` | no | — | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater's unit via `--env-file=%h/ld-current/.env` (a symlink to `~/ld-data/.env`), same as the viewer unit. |
+| `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
 | `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated). |
 
 ## Cook Tonight (optional)
@@ -61,7 +59,7 @@ Only a photo served by this app's own `/api/pinch/photos/<id>` route is rendered
 
 ## Architecture
 
-One Node process serves the Vite-built React SPA AND proxies the secret ICS URL at `/api/ical` with a 60-second in-memory cache and stale-on-failure fallback. The React app fetches that same-origin endpoint, parses with `ical.js` (recurrence-aware, drops `STATUS:CANCELLED`), and renders a list of the next `NEXT_N` events. The page calls `location.reload()` every `REFRESH_MS` (5 min default) — that, not in-app polling, is the freshness + state-recovery mechanism. Without `DASHBOARD_TOKEN` the server binds loopback only; with it (fork mode), it binds `0.0.0.0` so remote producers can reach the write APIs. A Host-header allowlist defends loopback callers against DNS rebinding; non-loopback callers may only POST `/api/message`, mutate banners via `POST`/`DELETE /api/banners`, and read `GET /api/version` — all with the bearer (every other read, the banner listing, and the SPA stay loopback) plus the open `/healthz` probe. In paired mode (`KIOSK_REMOTE_URL` set) the server binds loopback only regardless — see the row above.
+One Node process serves the Vite-built React SPA AND proxies the secret ICS URL at `/api/ical` with a 60-second in-memory cache and stale-on-failure fallback. The React app fetches that same-origin endpoint, parses with `ical.js` (recurrence-aware, drops `STATUS:CANCELLED`), and renders a list of the next `NEXT_N` events. The page calls `location.reload()` every `REFRESH_MS` (5 min default) — that, not in-app polling, is the freshness + state-recovery mechanism. Without `DASHBOARD_TOKEN` the server binds loopback only; with it, it binds `0.0.0.0` so remote producers can reach the write APIs. A Host-header allowlist defends loopback callers against DNS rebinding; non-loopback callers may only POST `/api/message`, mutate banners via `POST`/`DELETE /api/banners`, and read `GET /api/version` — all with the bearer (every other read, the banner listing, and the SPA stay loopback) plus the open `/healthz` probe.
 
 ## Messages (optional)
 
@@ -69,13 +67,10 @@ Plow posts messages from the `ld-*` bundles (in the `plow-pbc/seed-life-dashboar
 repo, under `ref/team-skills/`; rendered-card text is capped producer-side — see the
 `SKILL.md` bundles there — sized to this app's `--t-card`/line-clamp budget) directly
 to this server's `/api/message`
-endpoint — local/fork mode only. In paired mode producers instead POST to the
-Plow kiosk-store endpoint (`docs/kiosk-protocol.md`); this server polls it via
-`KIOSK_REMOTE_URL` and `/api/message` here answers 405. Storage is a file-backed
-JSON store (`data/messages.json`) keyed by **card number**: in local/fork mode
-each POST writes the latest message for its card slot, so a chatty producer
-can never evict another card's content; in paired mode the 60 s poll
-write-through does the same. The kiosk browser fetches `/api/message?card=N` from
+endpoint. Storage is a file-backed
+JSON store (`data/messages.json`) keyed by **card number**: each POST writes
+the latest message for its card slot, so a chatty producer can never evict
+another card's content. The kiosk browser fetches `/api/message?card=N` from
 the same-origin server (the bearer token never reaches the browser) and renders
 five numbered slots. A card whose slot has no stored message renders a quiet
 invitation placeholder so the layout stays at fixed dimensions all day.
@@ -152,8 +147,7 @@ There is no expiry: the latest post per card stays on screen until a newer one
 for the same card lands. **To clear a card, post a newer message to that card**
 (e.g. empty-state wording), since nothing expires on its own.
 
-To enable (local/fork mode; paired mode instead sets `KIOSK_REMOTE_URL` via
-`bootstrap.sh --pair` and producers POST to Plow — see `docs/kiosk-protocol.md`):
+To enable:
 
 1. **Generate a token:** `openssl rand -hex 32`. Set `DASHBOARD_TOKEN=<token>` in `.env` on the Pi, then restart `life-dashboard-viewer.service`. The server will bind `0.0.0.0:5174` and register `/api/message`.
 2. **Configure producers** (e.g. Plow on the Mac) to POST `{"card","type","text"}` with `Authorization: Bearer <token>` to `http://<pi-tailscale-hostname>:5174/api/message`. Default to a Tailscale hostname — the bearer is then WireGuard-encrypted on the wire. A raw LAN hostname/IP works as a trusted-household fallback, with the bearer transiting in plaintext. The remote surface is write-only except `GET /api/version` (bearer-gated, for deploy verification): every other GET is loopback-only (the kiosk).
