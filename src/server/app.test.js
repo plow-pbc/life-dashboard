@@ -197,38 +197,21 @@ describe('createApp', () => {
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
-    it('serves stale cache when upstream fails after ttl', async () => {
+    it.each([
+      ['serves stale cache without a pushed-feed store', undefined, 200, 'GOOD'],
+      ['does not serve stale cache with a pushed-feed store', documentStore(), 502, null],
+    ])('%s when upstream fails after ttl', async (_, calendarStore, status, body) => {
       const fetcher = vi
         .fn()
         .mockResolvedValueOnce('GOOD')
         .mockRejectedValueOnce(new Error('network down'));
       let t = 1_000_000;
-      const app = appWith(fetcher, { ttlMs: 60_000, now: () => t });
+      const app = appWith(fetcher, { calendarStore, ttlMs: 60_000, now: () => t });
       await app.fetch(new Request(url));
       t += 90_000;
       const res = await app.fetch(new Request(url));
-      expect(res.status).toBe(200);
-      expect(await res.text()).toBe('GOOD');
-      expect(fetcher).toHaveBeenCalledTimes(2);
-    });
-
-    it('does not serve an expired ICS cache when a pushed-feed store is present', async () => {
-      const fetcher = vi
-        .fn()
-        .mockResolvedValueOnce('GOOD')
-        .mockRejectedValueOnce(new Error('network down'));
-      let t = 1_000_000;
-      const app = appWith(fetcher, {
-        calendarStore: documentStore(),
-        ttlMs: 60_000,
-        now: () => t,
-      });
-      await app.fetch(new Request(url));
-      t += 90_000;
-
-      const res = await app.fetch(new Request(url));
-
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(status);
+      if (body) expect(await res.text()).toBe(body);
       expect(fetcher).toHaveBeenCalledTimes(2);
     });
 
