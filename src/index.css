@@ -436,6 +436,15 @@ body {
   font-weight: 300;
   font-size: var(--t-body);
 }
+
+.calendar-updated {
+  margin: auto 0 0;
+  font-family: var(--ff-mono);
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
 .error-state {
   color: var(--clay-ink);
 }

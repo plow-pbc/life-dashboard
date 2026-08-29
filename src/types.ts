@@ -5,4 +5,5 @@ export type Event = {
   end: Date;
   isAllDay: boolean;
   location: string | null;
+  calendar?: string | null;
 };

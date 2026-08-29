@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './src/server/app.js';
-import { createFileStore } from './src/server/store.js';
+import { createDocumentStore, createFileStore } from './src/server/store.js';
 import { createCardPoller, DEFAULT_TTL_MS } from './src/server/remote.js';
 import { createBannerStore } from './src/server/banners.js';
 import { JsonStore } from './src/server/pinch/store.js';
@@ -14,11 +14,10 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
-// ICAL_URL is the owner's to supply, possibly after bring-up (a paired Pi has
-// cards before it has a calendar): blank means /api/ical answers 502 and the
-// client shows its "Can't reach calendar" state, not a dead viewer.
+// ICAL_URL is the owner's optional fallback to the pushed feed: blank means
+// /api/ical answers 502, after which the client uses a stale feed or empty state.
 const ICAL_URL = process.env.ICAL_URL;
-if (!ICAL_URL) console.warn('ICAL_URL unset — the calendar stays empty until it is set in .env.');
+if (!ICAL_URL) console.warn('ICAL_URL unset — ICS fallback disabled.');
 
 const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN;
 // Remote store mode: cards live in the Plow kiosk store and DASHBOARD_TOKEN is
@@ -30,7 +29,7 @@ if (remoteMode && !DASHBOARD_TOKEN) {
   console.error('FATAL: KIOSK_REMOTE_URL is set but DASHBOARD_TOKEN (the kiosk read token) is not');
   process.exit(1);
 }
-// One switch gates the whole remote-write surface (message API + banner CRUD)
+// One switch gates the whole remote-write surface (message/calendar APIs + banner CRUD)
 // and the 0.0.0.0 bind below.
 const remoteWritesEnabled = Boolean(DASHBOARD_TOKEN) && !remoteMode;
 if (!remoteWritesEnabled && !remoteMode) {
@@ -84,6 +83,7 @@ const messageStore = remoteMode
     : undefined;
 // Background tick keeps the wall warm between page loads; reads coalesce on it.
 if (remoteMode) setInterval(() => messageStore.refresh(), DEFAULT_TTL_MS).unref();
+const calendarStore = await createDocumentStore('./data/calendar.json');
 
 const app = createApp({
   fetchUpstream: async () => {
@@ -116,6 +116,7 @@ const app = createApp({
   messageToken: DASHBOARD_TOKEN,
   pinch,
   version,
+  calendarStore,
 });
 
 // Banner images live outside the bundle so they can be swapped without a

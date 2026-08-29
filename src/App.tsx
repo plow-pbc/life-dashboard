@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { parseICS } from './ical';
+import { loadCalendarEvents } from './calendar';
 import type { Event } from './types';
 import { Banner } from './components/Banner';
 import { EventRow } from './components/EventRow';
@@ -9,6 +9,7 @@ import { CARDS, type CardSlot, type Message as MessageType } from './message';
 
 const NEXT_N = Number(__NEXT_N__);
 const REFRESH_MS = Number(__REFRESH_MS__);
+const CALENDAR_FEED_MAX_AGE = Number(__CALENDAR_FEED_MAX_AGE__);
 
 // Numbered card slots above the calendar. Each card fetches by its number
 // independently from the local store (see /api/message in src/server/app.js).
@@ -16,8 +17,7 @@ const REFRESH_MS = Number(__REFRESH_MS__);
 // day, no reflow when a message arrives.
 type State =
   | { kind: 'loading' }
-  | { kind: 'ready'; events: Event[] }
-  | { kind: 'error' };
+  | { kind: 'ready'; events: Event[]; staleGeneratedAt: Date | null };
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -29,15 +29,8 @@ export function App() {
     let cancelled = false;
 
     (async () => {
-      try {
-        const res = await fetch('api/ical');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        const events = parseICS(text, new Date(), NEXT_N);
-        if (!cancelled) setState({ kind: 'ready', events });
-      } catch {
-        if (!cancelled) setState({ kind: 'error' });
-      }
+      const result = await loadCalendarEvents(fetch, new Date(), NEXT_N, CALENDAR_FEED_MAX_AGE);
+      if (!cancelled) setState({ kind: 'ready', ...result });
     })();
 
     for (const card of CARDS) {
@@ -74,9 +67,6 @@ export function App() {
         <header className="header">
           <h1>Life Calendar</h1>
         </header>
-        {state.kind === 'error' && (
-          <p className="error-state">Can't reach calendar — retrying soon.</p>
-        )}
         {state.kind === 'ready' &&
           (state.events.length === 0 ? (
             <p className="empty-state">No upcoming events.</p>
@@ -87,6 +77,15 @@ export function App() {
               ))}
             </ul>
           ))}
+        {state.kind === 'ready' && state.staleGeneratedAt && (
+          <p className="calendar-updated">
+            Last updated{' '}
+            {state.staleGeneratedAt.toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
       </section>
     </main>
   );

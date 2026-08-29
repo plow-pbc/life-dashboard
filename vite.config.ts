@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __NEXT_N__: JSON.stringify(env.NEXT_N || '12'),
       __REFRESH_MS__: JSON.stringify(env.REFRESH_MS || '300000'),
+      __CALENDAR_FEED_MAX_AGE__: JSON.stringify(env.CALENDAR_FEED_MAX_AGE || '1800000'),
     },
     server: {
       port: 5173,

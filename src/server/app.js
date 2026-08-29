@@ -4,6 +4,7 @@ import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { registerPinchRoutes } from './pinch/routes.js';
+import { isCalendarFeed } from './calendar.js';
 
 const defaultGetRemote = (c) => getConnInfo(c).remote.address;
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -37,6 +38,7 @@ export function createApp({
   // Remote store mode: messageStore is the createCardPoller() view of the
   // Plow kiosk store, so there is nothing to POST into — 405, not 401.
   messageReadOnly = false,
+  calendarStore,
 }) {
   const app = new Hono();
 
@@ -73,13 +75,14 @@ export function createApp({
   };
 
   // Non-loopback clients exist only to PRODUCE: with the household bearer they
-  // may POST /api/message and POST/DELETE /api/banners (the texted-photo CRUD),
+  // may POST /api/message or /api/calendar and POST/DELETE /api/banners (the texted-photo CRUD),
   // plus hit the earlier-registered /healthz liveness probe — and nothing else.
   // Reads, private data (calendar proxy, banner LISTING/serving), and the SPA
   // never leave loopback. Loopback callers go through the DNS-rebinding Host
   // guard for the whole surface, including the SPA mounts server.js adds later.
   const isProducerWrite = (c) =>
     (c.req.path === '/api/message' && c.req.method === 'POST') ||
+    (c.req.path === '/api/calendar' && c.req.method === 'POST') ||
     (c.req.path === '/api/banners' && (c.req.method === 'POST' || c.req.method === 'DELETE'));
   // The deploy-verification read: the agent that pushed a release confirms the
   // SHA went live from off-box, with the same household bearer the writes use.
@@ -129,6 +132,21 @@ export function createApp({
       return c.text('Upstream unreachable', 502);
     }
   });
+
+  if (calendarStore) {
+    app.get('/api/calendar', async (c) => {
+      const feed = await calendarStore.get();
+      return feed ? c.json(feed) : c.text('not found', 404);
+    });
+    app.post('/api/calendar', async (c) => {
+      if (!bearerOk(c)) return c.text('unauthorized', 401);
+      const feed = await c.req.json().catch(() => null);
+      if (!isCalendarFeed(feed)) return c.text('invalid calendar feed', 422);
+      await calendarStore.replace(feed);
+      return c.json(feed);
+    });
+    app.on(['PUT', 'PATCH', 'DELETE'], '/api/calendar', (c) => c.text('method not allowed', 405));
+  }
 
   // /api/banners: lists image filenames in the banner folder. Cheap fs read,
   // no upstream cache needed. The "no banners configured" case (missing

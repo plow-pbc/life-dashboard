@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { createFileStore } from './store.js';
+import { createDocumentStore, createFileStore } from './store.js';
 
 async function freshPath() {
   return join(await mkdtemp(join(tmpdir(), 'store-')), 'data', 'messages.json');
@@ -103,5 +103,23 @@ describe('createFileStore', () => {
     const b = await createFileStore(path);
     expect(await b.get('__proto__')).toEqual({ card: '__proto__', type: 'plain', text: 'safe' });
     expect(await b.get('toString')).toBeNull();
+  });
+});
+
+describe('createDocumentStore', () => {
+  it('starts empty and persists a whole replacement document across reopen', async () => {
+    const path = await freshPath();
+    const store = await createDocumentStore(path);
+    expect(await store.get()).toBeNull();
+
+    const first = { generated_at: 'first', events: [{ uid: 'old' }] };
+    const replacement = { generated_at: 'second', events: [] };
+    await store.replace(first);
+    await store.replace(replacement);
+
+    expect(await store.get()).toEqual(replacement);
+    expect(await (await createDocumentStore(path)).get()).toEqual(replacement);
+    const { stat } = await import('node:fs/promises');
+    expect((await stat(path)).mode & 0o077).toBe(0);
   });
 });

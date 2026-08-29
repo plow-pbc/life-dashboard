@@ -51,3 +51,24 @@ export async function createFileStore(path) {
     },
   };
 }
+
+export async function createDocumentStore(path) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  let document = null;
+  try {
+    document = JSON.parse(await readFile(path, 'utf8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  return {
+    async get() {
+      return document;
+    },
+    async replace(next) {
+      const tmp = `${path}.tmp`;
+      await writeFile(tmp, JSON.stringify(next), { mode: 0o600 });
+      await rename(tmp, path);
+      document = next;
+    },
+  };
+}
