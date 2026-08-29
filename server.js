@@ -85,7 +85,9 @@ const messageStore = remoteMode
     : undefined;
 // Background tick keeps the wall warm between page loads; reads coalesce on it.
 if (remoteMode) setInterval(() => messageStore.refresh(), DEFAULT_TTL_MS).unref();
-const calendarStore = await createDocumentStore('./data/calendar.json');
+const calendarStore = remoteWritesEnabled
+  ? await createDocumentStore('./data/calendar.json')
+  : undefined;
 
 const app = createApp({
   fetchUpstream: async () => {

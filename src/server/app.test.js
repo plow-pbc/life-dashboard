@@ -29,8 +29,8 @@ const validFeed = {
   ],
 };
 
-function documentStore() {
-  let document = null;
+function documentStore(initial = null) {
+  let document = initial;
   return {
     get: async () => document,
     replace: async (next) => {
@@ -39,10 +39,16 @@ function documentStore() {
   };
 }
 
-function calendarApp({ store = documentStore(), token = 'tok', remote = '127.0.0.1' } = {}) {
+function calendarApp({
+  store = documentStore(),
+  token = 'tok',
+  remote = '127.0.0.1',
+  readOnly = false,
+} = {}) {
   return appWith(vi.fn(), {
     calendarStore: store,
     messageToken: token,
+    messageReadOnly: readOnly,
     getRemote: () => remote,
   });
 }
@@ -129,6 +135,13 @@ describe('/api/calendar routes', () => {
         method: 'POST',
         body: JSON.stringify(validFeed),
       }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('does not mount GET in paired mode', async () => {
+    const res = await calendarApp({ store: documentStore(validFeed), readOnly: true }).fetch(
+      new Request('http://localhost/api/calendar'),
     );
     expect(res.status).toBe(404);
   });

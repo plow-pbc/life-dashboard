@@ -69,6 +69,7 @@ function feedEvents(feed: CalendarFeed, now: Date, n: number): Event[] {
       end: parseFeedDate(event.end),
     }))
     .filter((event) => event.end >= now)
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
     .slice(0, n);
 }
 

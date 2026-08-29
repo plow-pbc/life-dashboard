@@ -8,7 +8,6 @@ import { CARDS, type CardSlot, type Message as MessageType } from './message';
 
 const NEXT_N = Number(__NEXT_N__);
 const REFRESH_MS = Number(__REFRESH_MS__);
-const CALENDAR_FEED_MAX_AGE = Number(__CALENDAR_FEED_MAX_AGE__);
 
 // Numbered card slots above the calendar. Each card fetches by its number
 // independently from the local store (see /api/message in src/server/app.js).
@@ -26,7 +25,7 @@ export function App() {
     let cancelled = false;
 
     (async () => {
-      const result = await loadCalendarEvents(fetch, new Date(), NEXT_N, CALENDAR_FEED_MAX_AGE);
+      const result = await loadCalendarEvents(fetch, new Date(), NEXT_N, 30 * 60_000);
       if (!cancelled) setState(result);
     })();
 

@@ -133,7 +133,7 @@ export function createApp({
     }
   });
 
-  if (messageToken && calendarStore) {
+  if (messageToken && calendarStore && !messageReadOnly) {
     app.get('/api/calendar', async (c) => {
       const feed = await calendarStore.get();
       return feed ? c.json(feed) : c.text('not found', 404);

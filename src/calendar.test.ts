@@ -129,7 +129,7 @@ describe('loadCalendarEvents', () => {
     });
   });
 
-  it('filters ended feed events before applying the display limit', async () => {
+  it('filters ended events and sorts by start before applying the display limit', async () => {
     const freshFeed = {
       ...feed,
       events: [
@@ -141,7 +141,13 @@ describe('loadCalendarEvents', () => {
           end: '2026-08-28T20:00:00-07:00',
         },
         feed.events[0],
-        { ...feed.events[0], uid: 'later', title: 'Later event' },
+        {
+          ...feed.events[0],
+          uid: 'earlier',
+          title: 'Earlier event',
+          start: '2026-08-28T22:00:00-07:00',
+          end: '2026-08-28T23:00:00-07:00',
+        },
       ],
     };
     const fetcher = vi.fn(async () => new Response(JSON.stringify(freshFeed)));
@@ -150,7 +156,7 @@ describe('loadCalendarEvents', () => {
 
     expect(result.kind).toBe('ready');
     if (result.kind !== 'ready') throw new Error('expected ready result');
-    expect(result.events.map((event) => event.title)).toEqual(['From pushed feed']);
+    expect(result.events.map((event) => event.title)).toEqual(['Earlier event']);
   });
 
   it('parses all-day date-only values as local calendar dates', async () => {

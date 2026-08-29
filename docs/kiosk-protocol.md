@@ -50,11 +50,38 @@ through its direct remote-write surface:
     Authorization: Bearer <DASHBOARD_TOKEN>
     Content-Type: application/json
 
+    {
+      "generated_at": "2026-08-29T04:00:00Z",
+      "window_days": 7,
+      "events": [
+        {
+          "uid": "event-id",
+          "title": "Dinner",
+          "start": "2026-08-29T18:00:00-07:00",
+          "end": "2026-08-29T19:00:00-07:00",
+          "isAllDay": false,
+          "location": null,
+          "calendar": null
+        }
+      ]
+    }
+
 That surface exists when `DASHBOARD_TOKEN` is set and `KIOSK_REMOTE_URL` is
 blank, which makes the viewer bind `0.0.0.0`. Paired installs force the viewer
 to loopback even though they hold a kiosk read token; tokenless local installs
 also bind loopback. Neither can receive this POST, so both use `ICAL_URL` for
 their calendar.
+
+The body has exactly the three top-level keys shown: `generated_at` is an
+RFC3339 date-time with seconds and an explicit offset (`Z` is accepted),
+and fractional seconds are accepted. `window_days` is an integer greater than
+zero, and `events` is an array. Every event has exactly the seven keys shown.
+`uid` is a non-empty string, `title` is a string, and `isAllDay` is a boolean.
+For timed events, `start` and `end` are RFC3339 date-times with seconds and an
+explicit offset; fractional seconds are accepted. For all-day events, both are
+date-only `YYYY-MM-DD` values.
+`location` and `calendar` are each either a string or `null`. Missing or extra
+keys and any other field shape are rejected with 422.
 
 ## Card map
 
