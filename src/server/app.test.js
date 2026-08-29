@@ -90,6 +90,21 @@ describe('createApp', () => {
     expect(res.status).toBe(502);
   });
 
+  it('boots with ICAL_URL unset and /api/ical answers 502', async () => {
+    // Mirrors server.js's fetchUpstream wrapper when ICAL_URL is blank.
+    const ICAL_URL = '';
+    const app = createApp({
+      fetchUpstream: async () => {
+        if (!ICAL_URL) throw new Error('ICAL_URL unset');
+        return 'unreachable';
+      },
+      listBanners: async () => [],
+      getRemote: () => '127.0.0.1',
+    });
+    const res = await app.fetch(new Request('http://localhost/api/ical'));
+    expect(res.status).toBe(502);
+  });
+
   describe('/api/banners', () => {
     it('returns the list returned by listBanners', async () => {
       const listBanners = vi.fn().mockResolvedValue(['a.png', 'b.png']);

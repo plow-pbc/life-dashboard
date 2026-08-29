@@ -37,7 +37,7 @@ within the hour.
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `ICAL_URL` | yes | — | Full private ICS URL. Secret. |
+| `ICAL_URL` | no | — | Full private ICS URL. Secret. Blank → `/api/ical` answers 502 and the client shows its "Can't reach calendar" state; cards still render. |
 | `NEXT_N` | no | `12` | Max events displayed. **Baked at build time** — rebuild to change. |
 | `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
 | `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |

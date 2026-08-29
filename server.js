@@ -13,11 +13,11 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
+// ICAL_URL is the owner's to supply, possibly after bring-up (a paired Pi has
+// cards before it has a calendar): blank means /api/ical answers 502 and the
+// client shows its "Can't reach calendar" state, not a dead viewer.
 const ICAL_URL = process.env.ICAL_URL;
-if (!ICAL_URL) {
-  console.error('FATAL: ICAL_URL is required (set it in .env)');
-  process.exit(1);
-}
+if (!ICAL_URL) console.warn('ICAL_URL unset — the calendar stays empty until it is set in .env.');
 
 const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN;
 // One switch gates the whole remote-write surface (message API + banner CRUD)
@@ -58,6 +58,7 @@ try {
 
 const app = createApp({
   fetchUpstream: async () => {
+    if (!ICAL_URL) throw new Error('ICAL_URL unset');
     const res = await fetch(ICAL_URL, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) throw new Error(`Upstream returned HTTP ${res.status}`);
     return await res.text();
