@@ -82,13 +82,11 @@ describe('createApp', () => {
   });
 
   // Route-specific miss-behavior (the two routes diverge on what to do when
-  // upstream fails AND the cache is empty) — covers both an unset ICAL_URL
-  // (server.js's fetchUpstream wrapper) and a live upstream failure.
-  it.each([
-    ['upstream failure', () => Promise.reject(new Error('network down'))],
-    ['ICAL_URL unset', () => Promise.reject(new Error('ICAL_URL unset'))],
-  ])('/api/ical returns 502 with no cache (%s)', async (_label, fetchUpstream) => {
-    const app = appWith(vi.fn(fetchUpstream));
+  // upstream fails AND the cache is empty). The rejection mirrors
+  // server.js's fetchUpstream wrapper when ICAL_URL is blank.
+  it('/api/ical returns 502 when upstream fails with no cache', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new Error('ICAL_URL unset'));
+    const app = appWith(fetcher);
     const res = await app.fetch(new Request('http://localhost/api/ical'));
     expect(res.status).toBe(502);
   });
