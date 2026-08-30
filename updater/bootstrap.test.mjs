@@ -7,20 +7,13 @@ import { promisify } from 'node:util';
 import { describe, it, expect, beforeEach } from 'vitest';
 
 // Runs the real bootstrap.sh against a tmp HOME. Every binary it calls is a
-// stub on PATH (curl records its argv and answers the pair; git fakes the
-// clone's on-disk effect; npm/loginctl/systemctl/chromium are no-ops); the
-// two absolute-path prerequisites come in through the LD_NODE / LD_CHROMIUM
-// seams, with the real node answering the version probe and parsing JSON.
+// stub on PATH (git fakes the clone's on-disk effect; npm/loginctl/systemctl/
+// chromium are no-ops); the two absolute-path prerequisites come in through
+// the LD_NODE / LD_CHROMIUM seams, with the real node answering the version probe.
 const run = promisify(execFile);
 const SCRIPT = fileURLToPath(new URL('./bootstrap.sh', import.meta.url));
-const PAIR_RESPONSE = JSON.stringify({
-  uid: 'kio_1',
-  read_token: 'rt_secret',
-  cards_url: 'https://api.plow.co/v1/kiosks/kio_1/cards',
-  status_url: 'https://api.plow.co/v1/kiosks/kio_1/status',
-});
 
-let home, bin, curlLog, envFile;
+let home, bin, envFile;
 
 const stub = async (name, body) => {
   await writeFile(join(bin, name), `#!/bin/sh\n${body}\n`);
@@ -30,10 +23,8 @@ const stub = async (name, body) => {
 beforeEach(async () => {
   home = await mkdtemp(join(os.tmpdir(), 'ld-bootstrap-'));
   bin = join(home, 'bin');
-  curlLog = join(home, 'curl.log');
   envFile = join(home, 'ld-data', '.env');
   await mkdir(bin);
-  await stub('curl', `echo "$@" >> "${curlLog}"\nprintf '%s' '${PAIR_RESPONSE}'`);
   await stub(
     'git',
     `case "$1" in
@@ -60,91 +51,36 @@ const bootstrap = (...args) => {
   });
 };
 
-const curlCalls = async () =>
-  (await readFile(curlLog, 'utf8').catch(() => '')).split('\n').filter(Boolean);
-
 describe('bootstrap.sh', () => {
-  it.each([
-    ['default PLOW_API_BASE', {}, 'https://api.plow.co/v1/kiosks/pair'],
-    [
-      'PLOW_API_BASE override',
-      { PLOW_API_BASE: 'http://localhost:8000' },
-      'http://localhost:8000/v1/kiosks/pair',
-    ],
-  ])(
-    '--pair redeems the code once and writes ~/ld-data/.env (mode 600); a second run is idempotent (%s)',
-    async (_name, envOverrides, wantPairUrl) => {
-      await bootstrap('--pair', 'ABC123', envOverrides);
-      await bootstrap('--pair', 'ABC123', envOverrides);
-      expect(await readFile(envFile, 'utf8')).toBe(
-        'ICAL_URL=\n' +
-          'KIOSK_REMOTE_URL=https://api.plow.co/v1/kiosks/kio_1/cards\n' +
-          'KIOSK_STATUS_URL=https://api.plow.co/v1/kiosks/kio_1/status\n' +
-          'DASHBOARD_TOKEN=rt_secret\n',
-      );
-      expect((await stat(envFile)).mode & 0o077).toBe(0);
-      const calls = await curlCalls();
-      expect(calls).toHaveLength(1);
-      expect(calls[0]).toContain(wantPairUrl);
-      expect(calls[0]).toContain('"code":"ABC123"');
-      // The rest of the install happened: ld-current points at the bootstrap clone.
-      expect((await stat(join(home, 'ld-current', 'updater'))).isDirectory()).toBe(true);
-    },
-  );
-
-  it('without --pair writes the empty ICAL_URL .env and never calls the API (local mode, unchanged)', async () => {
+  // Two full installs back to back: well past the default 5 s per-test budget.
+  it('writes the empty ICAL_URL .env (mode 600) and installs; a second run is idempotent', async () => {
+    await bootstrap('https://github.com/you/life-dashboard-home.git');
     await bootstrap('https://github.com/you/life-dashboard-home.git');
     expect(await readFile(envFile, 'utf8')).toBe('ICAL_URL=\n');
-    expect(await curlCalls()).toHaveLength(0);
+    expect((await stat(envFile)).mode & 0o077).toBe(0);
+    // The rest of the install happened: ld-current points at the bootstrap clone.
+    expect((await stat(join(home, 'ld-current', 'updater'))).isDirectory()).toBe(true);
+  }, 30_000);
+
+  it('never clobbers an existing ~/ld-data/.env', async () => {
+    await mkdir(join(home, 'ld-data'), { recursive: true });
+    await writeFile(envFile, 'ICAL_URL=https://example.invalid/cal.ics\n');
+    await bootstrap();
+    expect(await readFile(envFile, 'utf8')).toBe('ICAL_URL=https://example.invalid/cal.ics\n');
   });
 
-  it('a used/expired code (410) fails loudly before touching the install', async () => {
-    await stub('curl', 'exit 22'); // curl -f on an HTTP error
-    await expect(bootstrap('--pair', 'STALE1')).rejects.toMatchObject({
+  it('rejects an unknown option before touching anything', async () => {
+    await expect(bootstrap('--nope')).rejects.toMatchObject({
       code: 1,
-      stderr: expect.stringContaining('pairing failed'),
+      stderr: expect.stringContaining('unknown option --nope'),
     });
     await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('refuses --pair over a local-mode .env instead of mixing the two', async () => {
-    await mkdir(join(home, 'ld-data'), { recursive: true });
-    await writeFile(envFile, 'ICAL_URL=x\nDASHBOARD_TOKEN=localtok\n');
-    await expect(bootstrap('--pair', 'ABC123')).rejects.toMatchObject({
-      stderr: expect.stringContaining('without KIOSK_REMOTE_URL'),
-    });
-    expect(await curlCalls()).toHaveLength(0);
-  });
-
-  it('a .env with a blank KIOSK_REMOTE_URL is treated as un-paired, not silently skipped', async () => {
-    await mkdir(join(home, 'ld-data'), { recursive: true });
-    await writeFile(envFile, 'ICAL_URL=\nKIOSK_REMOTE_URL=\n');
-    await expect(bootstrap('--pair', 'ABC123')).rejects.toMatchObject({
-      stderr: expect.stringContaining('without KIOSK_REMOTE_URL'),
-    });
-    expect(await curlCalls()).toHaveLength(0);
-  });
-
-  it('a pairing code with non-alphanumeric characters is rejected before any curl call', async () => {
-    await expect(bootstrap('--pair', 'AB"123')).rejects.toMatchObject({
+  it('fails loudly when chromium is missing', async () => {
+    await expect(bootstrap({ LD_CHROMIUM: join(bin, 'absent') })).rejects.toMatchObject({
       code: 1,
-      stderr: expect.stringContaining('alphanumeric'),
-    });
-    expect(await curlCalls()).toHaveLength(0);
-    await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
-  });
-
-  it('a pair response with a newline in a field is rejected before ~/ld-data/.env is written', async () => {
-    const badResponse = JSON.stringify({
-      uid: 'kio_1',
-      read_token: 'rt_secret',
-      cards_url: 'https://api.plow.co/v1/kiosks/kio_1/cards',
-      status_url: 'https://api.plow.co/v1/kiosks/kio_1/status\nEXTRA=injected',
-    });
-    await stub('curl', `echo "$@" >> "${curlLog}"\nprintf '%s' '${badResponse}'`);
-    await expect(bootstrap('--pair', 'ABC123')).rejects.toMatchObject({
-      code: 1,
-      stderr: expect.stringContaining('invalid status_url'),
+      stderr: expect.stringContaining('sudo apt install chromium'),
     });
     await expect(stat(envFile)).rejects.toMatchObject({ code: 'ENOENT' });
   });

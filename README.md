@@ -38,32 +38,8 @@ template/main && git push` (the updater deploys the merge like any other push).
 
 ## Bring-up on a fresh Pi
 
-One sudo step (the toolchain), then one script. Two modes, chosen by how the
-script is called; in both, the script is idempotent — re-running repairs a
-partial install and never clobbers `~/ld-data/`.
-
-### Paired with Plow (no tailnet, no fork)
-
-The Pi tracks this template's `main`, polls its cards from the Plow kiosk
-store, and reports its deploy status upstream — it never accepts a connection.
-The household's agent mints a pairing code and texts the owner these two
-lines, which are the owner's whole contribution:
-
-```sh
-sudo apt install -y nodejs npm git chromium fonts-noto-color-emoji
-curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/updater/bootstrap.sh | sh -s -- --pair ABC123
-```
-
-`--pair` redeems the code once (`POST $PLOW_API_BASE/v1/kiosks/pair`, default
-`https://api.plow.co`; a used or expired code fails loudly) and writes
-`~/ld-data/.env` — `KIOSK_REMOTE_URL`, `KIOSK_STATUS_URL`, and
-`DASHBOARD_TOKEN` holding the kiosk's read token, mode 600 — then proceeds
-exactly as the fork mode below. An `.env` that already holds
-`KIOSK_REMOTE_URL` skips the pair. What remote store mode changes about the
-viewer and updater's behavior is documented in `.env.example` and
-[`docs/app-notes.md` § Configuration](docs/app-notes.md#configuration).
-
-### Household fork (LAN or tailnet producers)
+One sudo step (the toolchain), then one script. The script is idempotent —
+re-running repairs a partial install and never clobbers `~/ld-data/`.
 
 1. Install the toolchain: `/usr/bin/node` ≥ 20.6 (both units and the updater
    hardcode that path; the `--env-file` flag needs 20.6) and Chromium at
@@ -84,17 +60,15 @@ viewer and updater's behavior is documented in `.env.example` and
    `/api/version` verification read; `PINCH_DATA_FILE` enables the recipe
    tile). Secrets stay on the Pi — they are never in any repo.
 
-### Calendar transport by install mode
+### Calendar transport
 
 The Life agent can push the household calendar feed only when the Pi is in
-remote-write mode: `DASHBOARD_TOKEN` is set, `KIOSK_REMOTE_URL` is blank, and
-the viewer therefore binds `0.0.0.0`. The agent posts directly to the
-bearer-gated `/api/calendar` endpoint.
+remote-write mode: `DASHBOARD_TOKEN` is set, so the viewer binds `0.0.0.0`.
+The agent posts directly to the bearer-gated `/api/calendar` endpoint.
 
-A paired install always binds loopback, and the Plow kiosk store has no calendar
-feed relay. A tokenless local install also binds loopback. Neither can receive a
-pushed feed; `ICAL_URL` is their calendar path. Add the owner's private ICS URL
-to `~/ld-data/.env` and run `systemctl --user restart life-dashboard-viewer`.
+A tokenless install binds loopback and cannot receive a pushed feed; `ICAL_URL`
+is its calendar path. Add the owner's private ICS URL to `~/ld-data/.env` and
+run `systemctl --user restart life-dashboard-viewer`.
 Without a usable pushed feed or reachable ICS fallback, the cards continue to
 render and the calendar area shows "Can't reach calendar".
 
@@ -110,13 +84,10 @@ render and the calendar area shows "Can't reach calendar".
     -o UserKnownHostsFile=<state>/ld-dev/ssh/known_hosts -o StrictHostKeyChecking=yes'
   ```
 
-- **Verify the deploy.** In fork mode, `GET /api/version` with the household
-  bearer (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401
-  without it) → `{sha, deployedAt}`; success is a live SHA match. In paired
-  mode the Pi binds loopback only, so verification instead reads the
-  updater's own report: `GET /v1/kiosks/{uid}` on Plow returns the last
-  `KIOSK_STATUS_URL` PUT (`{sha, deployed_at, last_result}`). Either way,
-  anything else, read `~/ld-releases/state/last-result.json`.
+- **Verify the deploy.** `GET /api/version` with the household bearer
+  (`Authorization: Bearer $DASHBOARD_TOKEN` — off-box reads 401 without it)
+  → `{sha, deployedAt}`; success is a live SHA match. For anything else, read
+  `~/ld-releases/state/last-result.json`.
 - **SSH is for diagnosis and repair** (journal reads, `systemctl --user
   restart life-dashboard-viewer`, updater state, fixing live state) — never
   the deploy path: viewer-code changes ride the push, not the shell.
