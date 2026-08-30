@@ -6,7 +6,9 @@ Tiny React app that shows the next 12 events from a shared Google Calendar, serv
 
 ```sh
 cp .env.example .env
-# Fill in ICAL_URL with the calendar's private ICS URL.
+# ICAL_URL is optional: fill it with the calendar's private ICS URL to get the
+# wall's own calendar tile, or leave it blank when the calendar arrives as
+# agent-posted cards.
 
 npm install
 just dev    # starts Vite (5173) + API server (5174), Vite proxies /api → 5174
@@ -37,7 +39,7 @@ within the hour.
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `ICAL_URL` | yes | — | Full private ICS URL. Secret. |
+| `ICAL_URL` | no | — | Full private ICS URL. Secret. Blank serves an empty calendar rather than refusing to boot, so a household fed by agent-posted cards provisions no secret it never reads. |
 | `NEXT_N` | no | `12` | Max events displayed. **Baked at build time** — rebuild to change. |
 | `REFRESH_MS` | no | `300000` | Page reload interval (5 min). **Baked at build time**. |
 | `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and the off-box `GET /api/version` verification read. Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |

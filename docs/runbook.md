@@ -99,7 +99,9 @@ sh "$SCRATCH/repo/updater/bootstrap.sh" "$HOUSEHOLD"
 rm -rf "$SCRATCH"
 ```
 
-Finish by writing `~/ld-data/.env` (`ICAL_URL`; `DASHBOARD_TOKEN` enables
+Finish by writing `~/ld-data/.env` (`ICAL_URL` only if the wall should carry
+its own calendar tile -- a household whose calendar arrives as agent-posted
+cards leaves it blank and the tile renders empty; `DASHBOARD_TOKEN` enables
 remote card writes *and* the agent's off-box `GET /api/version` verification
 read) and restarting the viewer unit. No git credential anywhere (public
 fork = anonymous fetch).
