@@ -45,11 +45,6 @@ export async function createFileStore(path) {
         return next;
       });
     },
-    // Commit the complete snapshot in one atomic write: any card absent from
-    // it is dropped, never left stale from a prior put().
-    replace(byCardSnapshot) {
-      return queueWrite(() => Object.assign(Object.create(null), byCardSnapshot));
-    },
   };
 }
 

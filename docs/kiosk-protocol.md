@@ -11,24 +11,13 @@ contract is what keeps producers and viewer in lockstep.
 
 ## The wire request
 
-Every producer POSTs ONE message. In local/fork mode that goes straight to the
-household's Pi message API, below; in paired mode (no fork) the Pi binds
-loopback only, so producers instead `POST /v1/kiosks/<uid>/cards` on Plow,
-which the Pi's own poll of `KIOSK_REMOTE_URL` picks up:
+Every producer POSTs ONE message, straight to the household Pi's message API:
 
-    # local/fork mode: the Pi's own message API
     POST http://<pi>:5174/api/message
     Authorization: Bearer <DASHBOARD_TOKEN>          # the Pi's token
     Content-Type: application/json
 
-    # paired mode: the agent's Plow kiosk-store endpoint, not the Pi
-    POST https://api.plow.co/v1/kiosks/<uid>/cards
-    Authorization: Bearer <PLOW_BEARER_TOKEN>        # the agent's Plow token, not DASHBOARD_TOKEN
-    Content-Type: application/json
-
     { "card": "<1-5>", "type": "<type>", "text": "<body>", "title": "<optional>" }
-
-The JSON body is identical in both modes.
 
 - `card`, `type`, `text` are REQUIRED. `title` is OPTIONAL.
 - The store is **latest-post-per-card-wins**: re-posting a card replaces it.
@@ -43,8 +32,7 @@ The JSON body is identical in both modes.
 
 ## Calendar feed transport
 
-The pushed calendar feed has no paired-mode Plow relay. It reaches the Pi only
-through its direct remote-write surface:
+The pushed calendar feed reaches the Pi through its remote-write surface:
 
     POST http://<pi>:5174/api/calendar
     Authorization: Bearer <DASHBOARD_TOKEN>
@@ -65,11 +53,9 @@ through its direct remote-write surface:
       ]
     }
 
-That surface exists when `DASHBOARD_TOKEN` is set and `KIOSK_REMOTE_URL` is
-blank, which makes the viewer bind `0.0.0.0`. Paired installs force the viewer
-to loopback even though they hold a kiosk read token; tokenless local installs
-also bind loopback. Neither can receive this POST, so both use `ICAL_URL` for
-their calendar.
+That surface exists when `DASHBOARD_TOKEN` is set, which makes the viewer bind
+`0.0.0.0`. A tokenless install binds loopback and cannot receive this POST, so
+it uses `ICAL_URL` for its calendar.
 
 The body has exactly the three top-level keys shown: `generated_at` is an
 RFC3339 date-time with seconds and an explicit offset (`Z` is accepted),

@@ -2,14 +2,11 @@
 # One-shot Pi bring-up for the life-dashboard kiosk. Idempotent: re-running
 # repairs a partial install and never clobbers existing state or .env.
 #
-#   sh updater/bootstrap.sh [--pair <code>] [<repo-url>]
-#   curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/updater/bootstrap.sh | sh -s -- --pair ABC123
+#   sh updater/bootstrap.sh [<repo-url>]
+#   curl -fsSL https://raw.githubusercontent.com/plow-pbc/life-dashboard/main/updater/bootstrap.sh | sh
 #
 # <repo-url> defaults to the template; a household fork passes its own.
-# --pair <code> redeems a Plow kiosk pairing code and writes ~/ld-data/.env
-# (KIOSK_REMOTE_URL, KIOSK_STATUS_URL, DASHBOARD_TOKEN) — remote store mode,
-# no fork, no inbound connection. An .env already holding KIOSK_REMOTE_URL
-# skips the pair. Either way ICAL_URL stays the owner's to add afterwards.
+# ICAL_URL stays the owner's to add to ~/ld-data/.env afterwards.
 #
 # Runs as the kiosk user, no sudo — every unit is systemd --user.
 # Prerequisites it CHECKS but does not install (they need apt/sudo):
@@ -22,15 +19,12 @@ set -eu
 
 main() {
   REPO_URL=https://github.com/plow-pbc/life-dashboard
-  PAIR_CODE=
   while [ $# -gt 0 ]; do
     case $1 in
-      --pair) PAIR_CODE=${2:?--pair needs a code}; shift 2 ;;
-      -*) fail "unknown option $1 (usage: bootstrap.sh [--pair <code>] [<repo-url>])" ;;
+      -*) fail "unknown option $1 (usage: bootstrap.sh [<repo-url>])" ;;
       *) REPO_URL=$1; shift ;;
     esac
   done
-  PLOW_API_BASE=${PLOW_API_BASE:-https://api.plow.co}
   LD_NODE=${LD_NODE:-/usr/bin/node}
   LD_CHROMIUM=${LD_CHROMIUM:-/usr/bin/chromium}
 
@@ -44,12 +38,7 @@ main() {
 
   # -- household state (never inside a release; survives every flip) -----------
   mkdir -p "$HOME/ld-data/data" "$HOME/ld-data/banners"
-  if [ -f "$HOME/ld-data/.env" ]; then
-    [ -z "$PAIR_CODE" ] || grep -q '^KIOSK_REMOTE_URL=.' "$HOME/ld-data/.env" \
-      || fail "~/ld-data/.env exists without KIOSK_REMOTE_URL — move it aside to pair this Pi"
-  elif [ -n "$PAIR_CODE" ]; then
-    pair
-  else
+  if [ ! -f "$HOME/ld-data/.env" ]; then
     printf 'ICAL_URL=\n' > "$HOME/ld-data/.env"
     chmod 600 "$HOME/ld-data/.env"
     echo "bootstrap: wrote empty ~/ld-data/.env — fill in ICAL_URL (see .env.example)"
@@ -101,36 +90,5 @@ main() {
 }
 
 fail() { echo "bootstrap: $1" >&2; exit 1; }
-
-# Redeem the pairing code (one-shot upstream: a used or expired code is a 410,
-# which curl -f turns into a non-zero exit). node writes the file so URL and
-# token bytes never pass through shell quoting; mode 600 from the first byte.
-pair() {
-  case $PAIR_CODE in
-    ''|*[!A-Za-z0-9]*) fail "pairing code must be alphanumeric (from the agent)" ;;
-  esac
-  # `if body=$(...)` (not `body=$(...) || ...`) so `set -e` doesn't exit the
-  # script before the failing exit status can be captured into $status.
-  if body=$(curl -fsS -X POST -H 'content-type: application/json' \
-    -d "{\"code\":\"$PAIR_CODE\"}" "$PLOW_API_BASE/v1/kiosks/pair"); then
-    :
-  else
-    status=$?
-    fail "pairing failed (curl exit $status) — a used/expired code, or this Pi cannot reach $PLOW_API_BASE"
-  fi
-  printf '%s' "$body" | "$LD_NODE" -e '
-    const fs = require("fs");
-    const r = JSON.parse(fs.readFileSync(0, "utf8"));
-    for (const k of ["cards_url", "status_url", "read_token"])
-      if (typeof r[k] !== "string" || !r[k] || /[\r\n]/.test(r[k]))
-        throw new Error(`pair response has an invalid ${k}`);
-    fs.writeFileSync(
-      process.argv[1],
-      `ICAL_URL=\nKIOSK_REMOTE_URL=${r.cards_url}\nKIOSK_STATUS_URL=${r.status_url}\nDASHBOARD_TOKEN=${r.read_token}\n`,
-      { mode: 0o600 },
-    );
-  ' "$HOME/ld-data/.env"
-  echo "bootstrap: paired — wrote ~/ld-data/.env (remote store mode)"
-}
 
 main "$@"
