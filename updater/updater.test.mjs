@@ -1,5 +1,6 @@
 import { mkdir, mkdtemp, readFile, readlink, symlink, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -255,5 +256,18 @@ describe('updater', () => {
     const code = await run(deps([], { remoteSha: 'oldsha0', env: statusEnv }, calls));
     expect(code).toBe(0); // the noop action itself still succeeds
     expect(statusPut(calls)).toBeUndefined(); // reportStatus threw before the PUT
+  });
+
+  it('invoked through a symlink (how the unit runs it, via ~/ld-current), the main guard still fires', async () => {
+    // node resolves import.meta.url to the REAL path, so a guard comparing it
+    // against a symlinked argv[1] never matches — the timer run then exits 0
+    // having done nothing, silently. Spawn the real thing through a symlink
+    // into an empty HOME: the guard firing means run() executes and dies
+    // loudly on the missing ld-current (nonzero); the broken guard exits 0.
+    const link = join(home, 'updater-link.mjs');
+    await symlink(new URL('./updater.mjs', import.meta.url).pathname, link);
+    const emptyHome = await mkdtemp(join(os.tmpdir(), 'ld-guard-'));
+    const child = spawnSync(process.execPath, [link], { env: { ...process.env, HOME: emptyHome } });
+    expect(child.status).not.toBe(0);
   });
 });

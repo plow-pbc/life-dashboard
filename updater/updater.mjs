@@ -18,7 +18,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -260,6 +260,10 @@ export async function run(deps = {}) {
   return finish(0, { action: 'deployed', sha });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// realpathSync on argv[1]: the unit invokes this through the ~/ld-current
+// symlink, but node resolves import.meta.url to the REAL path — without the
+// realpath the guard never matches and every timer run exits 0 having done
+// nothing.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   process.exit(await run());
 }
