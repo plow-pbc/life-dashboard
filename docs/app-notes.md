@@ -164,7 +164,11 @@ If `DASHBOARD_TOKEN` is not set, the `/api/message` route is not registered and 
 
 `GET /theme.css` serves `./theme.css` from the release root — on a Pi a symlink
 to `~/ld-data/theme.css`, planted by the updater alongside `.env`, `data/` and
-`banners/`. The fs read lives in `server.js` (`readTheme`, ENOENT → `null`, the
+`banners/`. Unlike those three it is linked *unconditionally*: nobody has a
+theme at install time, so a link that waited for the file would leave a
+stylesheet written afterwards unserved until the next unrelated flip. Until the
+household writes one the link dangles, and the read below turns that into the
+same 404 as no link at all. The fs read lives in `server.js` (`readTheme`, ENOENT → `null`, the
 same read-or-absent shape as `listBanners`); `createApp` owns only the route,
 which answers `404 not found` when there is no file. That 404 has to be real:
 the SPA catch-all would otherwise hand the browser `index.html` labelled
