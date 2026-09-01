@@ -121,6 +121,26 @@ render and the calendar area shows "Can't reach calendar".
   restart life-dashboard-viewer`, updater state, fixing live state) — never
   the deploy path: viewer-code changes ride the push, not the shell.
 
+## Restyling the wall
+
+A household can restyle the dashboard without forking it. Drop a stylesheet at
+`~/ld-data/theme.css` and the wall picks it up on its next reload — no restart,
+no deploy. The server publishes it at `/theme.css` and the page loads it last,
+after the built stylesheet, so its rules win at equal specificity. No file is
+the normal case — the request 404s and the wall keeps the stock theme.
+
+The supported surface is the CSS custom properties declared on `:root` in
+`src/index.css` (fonts, palette, type scale, spacing, card chrome). Producer
+tiles style themselves against those same tokens (`docs/kiosk-protocol.md`), so
+redefining one carries the tiles with it. Plain selector rules work too, at the
+cost of tracking the viewer's class names across template updates.
+
+Like `.env`, `data/` and `banners/`, the file lives outside the release dirs and
+is symlinked into each one, so a deploy never disturbs it. That link is planted
+whether or not a stylesheet exists yet, which is what lets one written later be
+served immediately. It is gitignored: a household theme is household state, not
+repo content.
+
 ## Privacy
 
 The template carries zero household data. Calendars, tokens, messages, and

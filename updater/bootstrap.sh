@@ -75,7 +75,10 @@ main() {
   # Shared household state into the live release — the updater does this for
   # every release it builds, but the bootstrap release predates the updater,
   # and the viewer unit reads ld-current/.env.
-  for name in .env data banners; do
+  # theme.css is linked even when the household has not written one: the link
+  # is what lets a stylesheet added later be served without another deploy,
+  # and until then it dangles, which the server answers as the "no theme" 404.
+  for name in .env data banners theme.css; do
     ln -sfn "$HOME/ld-data/$name" "$HOME/ld-current/$name"
   done
 
