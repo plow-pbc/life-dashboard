@@ -160,6 +160,24 @@ To enable (local/fork mode; paired mode instead sets `KIOSK_REMOTE_URL` via
 
 If `DASHBOARD_TOKEN` is not set, the `/api/message` route is not registered and the message cards render as muted empty-state placeholders (the calendar still works).
 
+## Household stylesheet (optional)
+
+`GET /theme.css` serves `./theme.css` from the release root — on a Pi a symlink
+to `~/ld-data/theme.css`, planted by the updater alongside `.env`, `data/` and
+`banners/`. The fs read lives in `server.js` (`readTheme`, ENOENT → `null`, the
+same read-or-absent shape as `listBanners`); `createApp` owns only the route,
+which answers `404 not found` when there is no file. That 404 has to be real:
+the SPA catch-all would otherwise hand the browser `index.html` labelled
+`text/css`. Responses carry `cache-control: no-cache` so an edited theme shows
+up on the next kiosk reload.
+
+`index.html` loads it with a `<link>` as the **last element in `<body>`** —
+Vite injects the bundle's stylesheet into `<head>`, so only a tag after it wins
+at equal specificity. The intended override surface is the `:root` custom
+properties in `src/index.css`, which producer tiles also reference, so a token
+change carries the tiles. The existing CSP already allows it (`style-src
+'self'`). The file is gitignored.
+
 ## Banners (optional)
 
 Drop image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) into `./banners/` next to `server.js`. The dashboard fetches the listing at page load and shows one banner across the top row (3 tiles wide, beside the weather card), cycling through the sorted list once an hour. Selection is keyed off the wall clock (`floor(now / 1h) % count`), so it survives the kiosk's `REFRESH_MS` page reloads — every reload within the same hour shows the same banner. The hourly pick is only the baseline: a horizontal swipe on the image steps to the next/previous photo locally, until the next page reload re-bases to the hourly index. With an empty or missing folder `<Banner/>` renders nothing and the grid uses the bannerless layout (via `.app:has(.banner)`) — no photo row, and the message cards fill the top row instead. When banners are present, the photo takes the top row (3 tiles wide) beside the weather card. Files are served straight off disk; no rebuild required when adding new banners (changes pick up at the next page reload).

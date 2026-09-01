@@ -112,6 +112,24 @@ describe('updater', () => {
     expect(result).toMatchObject({ action: 'deployed', sha: 'newsha1', ok: true });
   });
 
+  // Shared household state is symlinked into each release, and theme.css is
+  // the optional member of that set: present, it must survive the flip;
+  // absent, the release must not carry a dangling link the server would then
+  // fail to read.
+  it.each([
+    ['links theme.css into the release when the household has one', true],
+    ['leaves no theme.css link when the household has none', false],
+  ])('%s', async (_name, present) => {
+    await mkdir(join(home, 'ld-data'), { recursive: true });
+    const theme = join(home, 'ld-data', 'theme.css');
+    if (present) await writeFile(theme, ':root{}\n');
+    const code = await run(deps([], { remoteSha: 'newsha1' }));
+    expect(code).toBe(0);
+    const link = join(releases, 'newsha1', 'theme.css');
+    expect(existsSync(link)).toBe(present);
+    if (present) expect(await readlink(link)).toBe(theme);
+  });
+
   // Build/test and probe failures share the arrange/act shape: deploy is
   // refused, ld-current never moves, the SHA stays UNPINNED (a transient
   // failure retries on the next tick), and last-result carries the failing

@@ -30,8 +30,9 @@ const LIVE_PORT = 5174;
 const HEALTH_PATHS = ['/healthz', '/', '/api/version'];
 const KEEP_RELEASES = 5;
 // Shared per-household state, symlinked into every release so a flip never
-// loses it: .env (secrets), data/ (messages), banners/ (photos).
-const SHARED = ['.env', 'data', 'banners'];
+// loses it: .env (secrets), data/ (messages), banners/ (photos), theme.css
+// (the household's optional stylesheet). Each is linked only if it exists.
+const SHARED = ['.env', 'data', 'banners', 'theme.css'];
 
 const realExec = (argv, opts = {}) =>
   new Promise((resolve) => {

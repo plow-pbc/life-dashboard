@@ -75,7 +75,10 @@ main() {
   # Shared household state into the live release — the updater does this for
   # every release it builds, but the bootstrap release predates the updater,
   # and the viewer unit reads ld-current/.env.
-  for name in .env data banners; do
+  # theme.css is optional, so link only what exists — a dangling link would
+  # make the release look like it has a stylesheet it cannot read.
+  for name in .env data banners theme.css; do
+    [ -e "$HOME/ld-data/$name" ] || continue
     ln -sfn "$HOME/ld-data/$name" "$HOME/ld-current/$name"
   done
 

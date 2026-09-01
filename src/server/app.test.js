@@ -251,6 +251,31 @@ describe('createApp', () => {
     });
   });
 
+  describe('/theme.css', () => {
+    it('serves the household stylesheet as CSS', async () => {
+      const app = appWith(vi.fn(), { readTheme: async () => ':root { --ink: #123456; }' });
+      const res = await app.fetch(new Request('http://localhost/theme.css'));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/css');
+      expect(await res.text()).toBe(':root { --ink: #123456; }');
+    });
+
+    // The SPA catch-all in server.js answers any unclaimed path with
+    // index.html, so "no theme" has to be a real 404 from this route — a
+    // fall-through would hand the browser HTML labelled as a stylesheet.
+    it('404s when the household has no stylesheet', async () => {
+      const app = appWith(vi.fn(), { readTheme: async () => null });
+      const res = await app.fetch(new Request('http://localhost/theme.css'));
+      expect(res.status).toBe(404);
+      expect(await res.text()).toBe('not found');
+    });
+
+    it('404s rather than falling through when no reader is wired at all', async () => {
+      const res = await appWith(vi.fn()).fetch(new Request('http://localhost/theme.css'));
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe('/api/version', () => {
     it('serves /api/version from the injected stamp', async () => {
       const app = appWith(vi.fn(), {
