@@ -26,6 +26,13 @@ describe('cardPresentation (type decides styling, position decides placement)', 
       { className: 'message-card message-card--card5 c-clay message-card--empty' },
     ],
     [
+      'card 6 is the priorities slot',
+      '6',
+      null,
+      'priorities',
+      { className: 'message-card message-card--card6 c-lavender message-card--empty' },
+    ],
+    [
       'placement + accent come from the card number',
       '4',
       msg({ type: 'digest' }),
