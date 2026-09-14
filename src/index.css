@@ -145,9 +145,11 @@ body {
   padding: var(--pad);
   display: grid;
   /* 3 equal columns. The photo spans 2 and weather takes the third on the top
-     row; alert / affirmation / sports sit equal-width on the next row; calendar
-     fills the slack; digest is a full-width row at 2× the card-row height. The
-     two card rows share one height (--row-h) so they read as a consistent band. */
+     row; 1/2/3 top row (bannerless) or photo+3 (banner) then 1/2; 5 sports and
+     6 priorities share the next row, sports one column, priorities two;
+     calendar fills the slack; digest is a full-width row at 2× the card-row
+     height. The two card rows share one height (--row-h) so they read as a
+     consistent band. */
   --row-h: 15rem;
   /* Height of the recipe strip; see .pinch-tile for why it exists and what it
      costs. Deliberately short — a wide band, not another full-height card. */
@@ -156,21 +158,27 @@ body {
   grid-template-rows: var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
   grid-template-areas:
     'card1    card2    card3'
-    'card5    card5    card5'
+    'card5    card6    card6'
     'calendar calendar calendar'
     'card4    card4    card4';
   gap: var(--gap);
 }
 
-/* Banners present → photo (2 tiles wide) shares the top row with weather; alert
- * / affirmation / sports sit equal-width on the next row (same height); calendar
- * fills the slack and digest is a full-width row at 2× the card-row height.
- * Deploys without a ./banners/ folder render <Banner/> as null, so this override
- * doesn't match and .app stays the bannerless layout. */
+/* Banners present → photo (2 tiles wide) shares the top row with weather; 1/2/3
+ * top row (bannerless) or photo+3 (banner) then 1/2; 5 sports and 6 priorities
+ * share the next row, sports one column, priorities two; calendar fills the
+ * slack and digest is a full-width row at 2× the card-row height. Gains one
+ * --row-h row over the bannerless layout, since card 5 used to share the
+ * alert/affirmation row: that row becomes alert+affirmation and sports+
+ * priorities follows it. Deploys without a ./banners/ folder render <Banner/>
+ * as null, so this override doesn't match and .app stays the bannerless
+ * layout. */
 .app:has(.banner) {
+  grid-template-rows: var(--row-h) var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
   grid-template-areas:
     'banner   banner   card3'
-    'card1    card2    card5'
+    'card1    card1    card2'
+    'card5    card6    card6'
     'calendar calendar calendar'
     'card4    card4    card4';
 }
@@ -182,17 +190,20 @@ body {
   grid-template-rows: var(--row-h) var(--row-h) var(--cook-h) 1fr calc(var(--row-h) * 2);
   grid-template-areas:
     'card1    card2    card3'
-    'card5    card5    card5'
+    'card5    card6    card6'
     'cook     cook     cook'
     'calendar calendar calendar'
     'card4    card4    card4';
 }
 
-/* Rows come from .app:has(.pinch-tile) above — only the areas differ. */
+/* Areas come from .app:has(.banner) above; rows need their own declaration
+ * here because the banner adds a row on top of what .pinch-tile adds. */
 .app:has(.banner):has(.pinch-tile) {
+  grid-template-rows: var(--row-h) var(--row-h) var(--row-h) var(--cook-h) 1fr calc(var(--row-h) * 2);
   grid-template-areas:
     'banner   banner   card3'
-    'card1    card2    card5'
+    'card1    card1    card2'
+    'card5    card6    card6'
     'cook     cook     cook'
     'calendar calendar calendar'
     'card4    card4    card4';
@@ -274,6 +285,9 @@ body {
 }
 .message-card--card5 {
   grid-area: card5;
+}
+.message-card--card6 {
+  grid-area: card6;
 }
 .message-card--empty {
   opacity: 0.5;
