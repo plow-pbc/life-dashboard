@@ -26,6 +26,13 @@ describe('cardPresentation (type decides styling, position decides placement)', 
       { className: 'message-card message-card--card5 c-clay message-card--empty' },
     ],
     [
+      'card 6 is the priorities slot',
+      '6',
+      null,
+      'priorities',
+      { className: 'message-card message-card--card6 c-lavender message-card--empty' },
+    ],
+    [
       'placement + accent come from the card number',
       '4',
       msg({ type: 'digest' }),
@@ -45,6 +52,7 @@ describe('Message renders the producer HTML generically', () => {
     // per-type parsing, so weather/sports/future widgets share one path.
     ['sports', '5', '<div class="sp-game"><span class="sp-star">★</span><span class="sp-sc a">5</span></div>'],
     ['weather', '3', '<div class="weather"><span class="weather-temp">72°</span></div>'],
+    ['priorities', '6', '<div class="pr-list"><div class="pr-item"><span class="pr-n">1</span><span class="pr-text">Renew passports</span></div></div>'],
   ])('drops the %s producer fragment into the card body verbatim', (type, card, fragment) => {
     const out = render(card as CardSlot, msg({ type, text: fragment }));
     expect(out).toContain('class="tile-body"');
