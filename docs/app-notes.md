@@ -77,27 +77,28 @@ each POST writes the latest message for its card slot, so a chatty producer
 can never evict another card's content; in paired mode the 60 s poll
 write-through does the same. The kiosk browser fetches `/api/message?card=N` from
 the same-origin server (the bearer token never reaches the browser) and renders
-five numbered slots. A card whose slot has no stored message renders a quiet
+six numbered slots. A card whose slot has no stored message renders a quiet
 invitation placeholder so the layout stays at fixed dimensions all day.
 
 ### Card layout
 
 Cards are dumb numbered slots; **producers decide placement**. The grid is 3
 columns. With a photo banner present: the photo spans 2 tiles on the top row
-with **card 3 (weather)** in the third; **cards 1, 2, 5** sit equal-width on the
-next row (1 alert, 2 affirmation, 5 sports); **card 4 (digest)** gets its own
+with **card 3 (weather)** in the third; **cards 1, 2** sit on the next row (1
+alert, 2 affirmation); **card 5 (sports) and card 6 (priorities)** share the
+row after — sports one column, priorities two; **card 4 (digest)** gets its own
 full-width row at 2× the card-row height below the calendar. Each position keeps a stable
-warm category accent (1 clay, 2 lavender, 3 cornflower, 4 seaglass, 5 clay) so
-the palette doesn't shift as content changes.
+warm category accent (1 clay, 2 lavender, 3 cornflower, 4 seaglass, 5 clay, 6
+lavender) so the palette doesn't shift as content changes.
 
 Bannerless:
 
 ```
 ┌─────────┬─────────┬─────────┐
 │  Card 1 │  Card 2 │  Card 3 │  15rem
-├─────────┴─────────┴─────────┤
-│           Card 5            │  15rem
-├─────────────────────────────┤
+├─────────┼─────────┴─────────┤
+│  Card 5 │      Card 6       │  15rem
+├─────────┴───────────────────┤
 │      Cook Tonight strip     │  8rem  — conditional, see below
 ├─────────────────────────────┤
 │                             │
@@ -108,8 +109,8 @@ Bannerless:
 └─────────────────────────────┘
 ```
 
-With a photo banner, the top two rows become `banner banner card3` / `card1
-card2 card5`; the rest is unchanged.
+With a photo banner, the layout gains one row: `banner banner card3` / `card1
+card1 card2` (alert double-width) / `card5 card6 card6`; the rest is unchanged.
 
 The Cook Tonight strip appears only when there is a recipe to show: the snapshot
 is configured AND the library has at least one recipe. No snapshot, an empty
@@ -123,8 +124,8 @@ strikes for the photo.
 POST body: `{ card, type, text }` — all three required, trimmed; any non-empty
 string is accepted for each field. An optional `title` (string) controls the
 card's eyebrow. GET with `?card=K` returns `{ message }` (null when the slot has
-no content). Messages posted to a card other than `'1'`–`'5'` are accepted and
-stored but never displayed (the kiosk only fetches those five).
+no content). Messages posted to a card other than `'1'`–`'6'` are accepted and
+stored but never displayed (the kiosk only fetches those six).
 
 **The card's eyebrow is producer-controlled via the optional `title`** — omit it
 and the card shows its `type` as the small uppercase label (`type: 'affirmation'`
