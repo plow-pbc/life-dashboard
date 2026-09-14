@@ -169,10 +169,10 @@ body {
  * share the next row, sports one column, priorities two; calendar fills the
  * slack and digest is a full-width row at 2× the card-row height. Gains one
  * --row-h row over the bannerless layout, since card 5 used to share the
- * alert/affirmation row: that row becomes alert+affirmation and sports+
- * priorities follows it. Deploys without a ./banners/ folder render <Banner/>
- * as null, so this override doesn't match and .app stays the bannerless
- * layout. */
+ * alert/affirmation row: that row becomes alert (double-width — it carries
+ * the longer line) + affirmation, and sports+priorities follows it. Deploys
+ * without a ./banners/ folder render <Banner/> as null, so this override
+ * doesn't match and .app stays the bannerless layout. */
 .app:has(.banner) {
   grid-template-rows: var(--row-h) var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
   grid-template-areas:
