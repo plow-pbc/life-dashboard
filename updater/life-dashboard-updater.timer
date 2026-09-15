@@ -2,9 +2,11 @@
 Description=Run the Life Dashboard updater every 2 minutes
 
 [Timer]
+# OnActiveSec fires 1min after the timer is activated -- at boot, or when
+# bootstrap.sh enables it hours later. OnUnitActiveSec alone never arms until
+# the service has run once, so a timer without this sat "active (elapsed)".
+OnActiveSec=1min
 OnUnitActiveSec=2min
-OnBootSec=1min
-Persistent=true
 
 [Install]
 WantedBy=timers.target
