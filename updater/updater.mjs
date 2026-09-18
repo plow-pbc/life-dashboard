@@ -30,8 +30,17 @@ const LIVE_PORT = 5174;
 const HEALTH_PATHS = ['/healthz', '/', '/api/version'];
 const KEEP_RELEASES = 5;
 // Shared per-household state, symlinked into every release so a flip never
-// loses it: .env (secrets), data/ (messages), banners/ (photos).
+// loses it: .env (secrets), data/ (messages), banners/ (photos). Linked only
+// if it exists — bootstrap creates all three, so an absent one means the
+// install genuinely has none.
 const SHARED = ['.env', 'data', 'banners'];
+// The household's optional stylesheet is linked whether or not it exists yet.
+// Nobody writes it at install time; it arrives whenever the household decides
+// to restyle the wall, and a link planted in advance is what lets the running
+// viewer serve it then — rather than 404ing until the next unrelated deploy
+// happens to plant one. A dangling link reads as ENOENT, which is precisely
+// the "no theme" the server already answers 404 for.
+const SHARED_ALWAYS = ['theme.css'];
 
 const realExec = (argv, opts = {}) =>
   new Promise((resolve) => {
@@ -200,12 +209,15 @@ export async function run(deps = {}) {
   if (cloned.code !== 0)
     return fail('build-failed', `git clone: ${tail(cloned.stderr || cloned.stdout)}`);
 
-  // Shared household state (secrets, messages, photos) lives outside the
+  // Shared household state (secrets, messages, photos, theme) lives outside the
   // release dirs and is symlinked into each one — before the build/test steps,
   // so nothing downstream can depend on it being absent.
   for (const name of SHARED) {
     const source = join(home, 'ld-data', name);
     if (existsSync(source)) await symlink(source, join(releaseDir, name));
+  }
+  for (const name of SHARED_ALWAYS) {
+    await symlink(join(home, 'ld-data', name), join(releaseDir, name));
   }
 
   for (const argv of [

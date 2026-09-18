@@ -8,5 +8,10 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- The household's optional stylesheet (server: /theme.css, file:
+         ~/ld-data/theme.css). Last in the document on purpose: Vite injects
+         the bundle's <link> into <head>, so only a tag after it wins at equal
+         specificity. No file is a 404 the page ignores. -->
+    <link rel="stylesheet" href="./theme.css" />
   </body>
 </html>

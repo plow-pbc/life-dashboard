@@ -39,6 +39,12 @@ export function createApp({
   // Plow kiosk store, so there is nothing to POST into — 405, not 401.
   messageReadOnly = false,
   calendarStore,
+  // Optional household stylesheet: resolves to the CSS text, or to null when
+  // the household has not written one (the common case). The fs read lives in
+  // server.js, like listBanners. Defaulted rather than optional so the route
+  // always answers 404 for a themeless wiring instead of falling through to
+  // the SPA catch-all server.js mounts, which would serve index.html as CSS.
+  readTheme = async () => null,
 }) {
   const app = new Hono();
 
@@ -149,6 +155,22 @@ export function createApp({
     });
     app.on(['PUT', 'PATCH', 'DELETE'], '/api/calendar', (c) => c.text('method not allowed', 405));
   }
+
+  // /theme.css: the household's optional stylesheet, loaded by index.html
+  // after the built one so its overrides win at equal specificity. No file is
+  // the normal case, not an error — the 404 leaves the page on the built theme
+  // and is the only trace the install ever had a theme to look for.
+  app.get('/theme.css', async (c) => {
+    const css = await readTheme();
+    if (css === null) return c.text('not found', 404);
+    // no-cache, not no-store: the sheet is a few KB over loopback, and a
+    // household that edits it expects the next kiosk reload to show the edit
+    // rather than whatever the browser decided to keep.
+    return c.body(css, 200, {
+      'content-type': 'text/css; charset=utf-8',
+      'cache-control': 'no-cache',
+    });
+  });
 
   // /api/banners: lists image filenames in the banner folder. Cheap fs read,
   // no upstream cache needed. The "no banners configured" case (missing

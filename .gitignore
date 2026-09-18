@@ -9,4 +9,5 @@ docs/**/plans/
 .vercel
 banners/
 data/
+/theme.css
 version.json

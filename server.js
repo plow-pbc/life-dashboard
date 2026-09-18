@@ -14,6 +14,12 @@ import { JsonStore } from './src/server/pinch/store.js';
 const BANNER_DIR = './banners';
 const BANNER_EXTS = /\.(png|jpe?g|webp|gif)$/i;
 
+// The household's optional stylesheet, served at /theme.css and loaded after
+// the built one. Like ./banners it is per-household state living outside the
+// bundle: on a Pi it is a symlink the updater plants into each release, so a
+// household restyles the wall by editing one file and never forks the repo.
+const THEME_FILE = './theme.css';
+
 // ICAL_URL is the owner's optional fallback to the pushed feed: blank means
 // /api/ical answers 502, after which the client uses a stale feed or its error state.
 const ICAL_URL = process.env.ICAL_URL;
@@ -111,6 +117,17 @@ const app = createApp({
       .filter((e) => e.isFile() && BANNER_EXTS.test(e.name))
       .map((e) => e.name)
       .sort();
+  },
+  // Absent is the normal case (ENOENT -> null, the same read-or-absent shape
+  // listBanners uses); any other failure surfaces rather than masquerading as
+  // "no theme".
+  readTheme: async () => {
+    try {
+      return await readFile(THEME_FILE, 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') return null;
+      throw err;
+    }
   },
   messageStore,
   messageReadOnly: remoteMode,

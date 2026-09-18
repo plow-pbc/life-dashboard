@@ -113,6 +113,28 @@ describe('updater', () => {
     expect(result).toMatchObject({ action: 'deployed', sha: 'newsha1', ok: true });
   });
 
+  // theme.css is the one shared entry nobody has at install time: it appears
+  // whenever the household decides to restyle. The link therefore has to be
+  // planted unconditionally, or a stylesheet written after this deploy stays
+  // unserved until some later, unrelated flip happens to plant one.
+  it('links theme.css into the release whether or not the household has one yet', async () => {
+    await mkdir(join(home, 'ld-data'), { recursive: true });
+    const theme = join(home, 'ld-data', 'theme.css');
+    const link = join(releases, 'newsha1', 'theme.css');
+
+    expect(await run(deps([], { remoteSha: 'newsha1' }))).toBe(0);
+    expect(await readlink(link)).toBe(theme);
+    // Dangling for now — existsSync follows the link — which is the ENOENT the
+    // server answers as its "no theme" 404.
+    expect(existsSync(link)).toBe(false);
+
+    // The household writes one later; the link already planted resolves, with
+    // no second deploy in between.
+    await writeFile(theme, ':root{}\n');
+    expect(existsSync(link)).toBe(true);
+    expect(await readFile(link, 'utf8')).toBe(':root{}\n');
+  });
+
   // Build/test and probe failures share the arrange/act shape: deploy is
   // refused, ld-current never moves, the SHA stays UNPINNED (a transient
   // failure retries on the next tick), and last-result carries the failing
