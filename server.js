@@ -6,7 +6,7 @@ import { createApp } from './src/server/app.js';
 import { createDocumentStore, createFileStore } from './src/server/store.js';
 import { createCardPoller, DEFAULT_TTL_MS } from './src/server/remote.js';
 import { createBannerStore } from './src/server/banners.js';
-import { JsonStore } from './src/server/pinch/store.js';
+import { JsonStore, readTonightPin, todayLocalYMD } from './src/server/pinch/store.js';
 import { createWeatherFetcher } from './src/server/weather.js';
 import { createSportsFetcher } from './src/server/sports.js';
 
@@ -52,6 +52,14 @@ const pinch = PINCH_DATA_FILE
   ? {
       store: new JsonStore(PINCH_DATA_FILE),
       photosDir: join(dirname(PINCH_DATA_FILE), 'photos'),
+      // The "Cook Tonight" pin is a sibling `tonight.json` ({ recipeId, date? })
+      // beside the library — DERIVED from PINCH_DATA_FILE, not separately configured,
+      // the same way photosDir is. It is a separate file on purpose: the hourly sync
+      // only rewrites collection.json + photos/, so the pin survives regeneration.
+      // Read tolerantly (absent/malformed → no pin) so a bad pin never breaks the tile.
+      // todayLocalYMD() is recomputed PER REQUEST so a dated pin auto-expires at the
+      // household-local day boundary without the process restarting.
+      readPin: () => readTonightPin(join(dirname(PINCH_DATA_FILE), 'tonight.json'), todayLocalYMD()),
     }
   : null;
 if (!pinch) {
