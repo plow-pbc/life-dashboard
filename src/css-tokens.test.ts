@@ -47,7 +47,11 @@ describe('index.css', () => {
   // memory, so the guard is exercised on every run rather than only when
   // someone remembers to plant it by hand.
   it('detects the glob-path comment that broke --t-eyebrow', () => {
-    const broken = css.replace('ref/team-skills/', 'ref/team-skills/*/SKILL.md');
+    // Reproduces the original failure mode: a `*/` inside a comment closes it
+    // early, turning the next declaration into garbage. We inject one into an
+    // existing comment and confirm the checker (via postcss) still complains.
+    const anchor = 'bundled via @fontsource';
+    const broken = css.replace(anchor, `${anchor} see src/*/SKILL.md`);
     expect(broken, 'mutation anchor no longer present in index.css').not.toBe(css);
     expect(check(broken)).not.toEqual([]);
   });

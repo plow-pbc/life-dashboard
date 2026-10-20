@@ -1,0 +1,86 @@
+/* Component-scoped styling for <Weather/>. Classes are prefixed `wx-` so they
+   never collide with the head chef's grid CSS in index.css, which this file
+   deliberately does not touch. The only shared contract is the :root theme
+   tokens (--ink / --ff-serif / --ff-mono / --apricot* / --cornflower* …)
+   defined in index.css — the same contract every tile rests on.
+
+   Visual target: the "weather" tile in mockups/dashboard-warm-cal3week.html —
+   big serif temperature, a hi/lo gradient range bar, a "condition · location"
+   caption, under a "Weather" eyebrow + sun badge. Uses the apricot color
+   family (.c-apricot in the mockup). Card chrome (bg/border/radius/shadow/
+   padding) is owned by the grid cell the head chef places this in, so the
+   component paints only its own interior. */
+
+.wx {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 0;
+}
+
+.wx-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wx-eyebrow {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow, 18px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--apricot-ink, #c06a2c);
+}
+
+.wx-temp {
+  font-family: var(--ff-serif, serif);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.82;
+  color: var(--ink, #01000a);
+  font-size: var(--t-figure, 92px);
+}
+
+.wx-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.wx-range .wx-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--cornflower, #74a7f6) 0%,
+    var(--apricot, #fba464) 100%
+  );
+}
+.wx-range .wx-lo,
+.wx-range .wx-hi {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-range .wx-hi {
+  color: var(--apricot-ink, #c06a2c);
+}
+.wx-range .wx-lo {
+  color: var(--cornflower-ink, #3470c5);
+}
+
+.wx-caption {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--apricot-ink, #c06a2c);
+  line-height: 1.4;
+  margin-top: 10px;
+}

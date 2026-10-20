@@ -1,11 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { hourlyIndex, stepIndex, swipeDir, BANNER_ROTATE_MS } from './banner';
+import { hourlyIndex, stepIndex, swipeDir, placeholderLabel, BANNER_ROTATE_MS } from './banner';
 
 describe('hourlyIndex (baseline auto-rotation)', () => {
   it('indexes by the wall-clock hour, modulo the count', () => {
     const now = 100 * BANNER_ROTATE_MS + 5_000; // hour 100, +5s
     expect(hourlyIndex(6, now)).toBe(100 % 6); // 4
     expect(hourlyIndex(6, now + BANNER_ROTATE_MS)).toBe(101 % 6); // next hour advances
+  });
+});
+
+describe('placeholderLabel (empty-banner state)', () => {
+  it('is the full date, uppercase — no family name anywhere in it', () => {
+    const oct = new Date(2026, 9, 15, 9, 0); // Thu Oct 15 2026 (TZ pinned to LA)
+    expect(placeholderLabel(oct)).toBe('OCTOBER 15, 2026');
+    // A different date proves month/day/year are dynamic, not baked.
+    const jan = new Date(2027, 0, 3, 12, 0);
+    expect(placeholderLabel(jan)).toBe('JANUARY 3, 2027');
   });
 });
 

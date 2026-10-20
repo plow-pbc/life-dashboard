@@ -7,6 +7,8 @@ import { createDocumentStore, createFileStore } from './src/server/store.js';
 import { createCardPoller, DEFAULT_TTL_MS } from './src/server/remote.js';
 import { createBannerStore } from './src/server/banners.js';
 import { JsonStore } from './src/server/pinch/store.js';
+import { createWeatherFetcher } from './src/server/weather.js';
+import { createSportsFetcher } from './src/server/sports.js';
 
 // Banner images are served from ./banners/ at runtime — not bundled. Drop new
 // images in the folder and they appear at the next page reload. Missing or
@@ -89,6 +91,37 @@ const calendarStore = remoteWritesEnabled
   ? await createDocumentStore('./data/calendar.json')
   : undefined;
 
+// Weather tile (NWS, no key). Always on — it needs no secret and no pushed
+// feed. WEATHER_LAT/WEATHER_LON/WEATHER_LOCATION override the default
+// (Mountain View). The fetcher primes itself and refreshes on an interval; the
+// tile reads only the cached snapshot via /api/weather.
+const weatherStore = createWeatherFetcher({
+  lat: Number(process.env.WEATHER_LAT ?? 37.386),
+  lon: Number(process.env.WEATHER_LON ?? -122.083),
+  location: process.env.WEATHER_LOCATION ?? 'Mountain View',
+});
+
+// Sports tile (ESPN, no key). Followed teams come from SPORTS_TEAMS — a JSON
+// array of { abbr, sport, league }, e.g.
+//   [{"abbr":"SF","sport":"football","league":"nfl"},
+//    {"abbr":"GS","sport":"basketball","league":"nba"}]
+// Blank or malformed → an empty list, and the tile shows "No upcoming games".
+let sportsTeams = [];
+if (process.env.SPORTS_TEAMS) {
+  try {
+    const parsed = JSON.parse(process.env.SPORTS_TEAMS);
+    if (Array.isArray(parsed)) sportsTeams = parsed;
+    else console.warn('SPORTS_TEAMS is not a JSON array — ignoring.');
+  } catch {
+    console.warn('SPORTS_TEAMS is not valid JSON — ignoring.');
+  }
+}
+// Team logos are downloaded+cached here on each refresh and served back from
+// /api/sports/logo/:id, so the kiosk loads only `self` images (CSP). Lives
+// under ./data alongside the other runtime state; created on first refresh.
+const SPORTS_LOGOS_DIR = process.env.SPORTS_LOGOS_DIR ?? './data/sports-logos';
+const sportsStore = createSportsFetcher({ teams: sportsTeams, logosDir: SPORTS_LOGOS_DIR });
+
 const app = createApp({
   fetchUpstream: async () => {
     if (!ICAL_URL) throw new Error('ICAL_URL unset');
@@ -121,6 +154,21 @@ const app = createApp({
   pinch,
   version,
   calendarStore,
+  weatherStore,
+  sportsStore,
+  // Runtime FAMILY_NAME for the banner placeholder, served via GET /api/config.
+  // A `.env` change + `systemctl --user restart life-dashboard-viewer` applies
+  // it with no client rebuild (unlike the build-time Vite defines). Loopback-only.
+  familyName: process.env.FAMILY_NAME,
+  // The owner's configured Pinch backend origin for the Meals tab (iframe src +
+  // CSP frame-src). Validated/normalized in createApp; unset → Meals shows a
+  // placeholder and no frame-src is emitted. Same restart-to-apply story.
+  pinchBackendUrl: process.env.PINCH_BACKEND_URL,
+  // The read-only Pinch embed token for the Meals iframe. Kept OUT of
+  // PINCH_BACKEND_URL on purpose (that value is normalized to origin-only for the
+  // CSP). Read-only + rotatable, so it is a re-pasteable `.env` value read at
+  // runtime; createApp URL-encodes it and serves it via loopback-only /api/config.
+  pinchEmbedToken: process.env.PINCH_EMBED_TOKEN,
 });
 
 // Banner images live outside the bundle so they can be swapped without a

@@ -1,0 +1,222 @@
+/* Component-scoped styling for <Sports/>. Classes are prefixed `sp-` so they
+   never collide with the head chef's grid CSS in index.css, which this file
+   deliberately does not touch. The only shared contract is the :root theme
+   tokens (--ink / --ff-mono / --ff-body / --seaglass* / --live-red / --faint …)
+   defined in index.css.
+
+   Visual target: the Apple Sports widget layout — each game is a MATCHUP ROW
+   with the away team crest on the left, the home team crest on the right, and a
+   center column that shows the start time (upcoming), or the scores flanking a
+   live period+clock / "Final" (live + final). Styled to the wall's WARM theme
+   (seaglass-accented, cream crests) rather than Apple's literal dark green, so
+   it's cohesive with the rest of the wall. Structure is kept flat + token-driven
+   so a later darker re-skin is a palette swap, not a rewrite.
+
+   Card chrome is owned by the grid cell the head chef places this in. */
+
+.sp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.sp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sp-eyebrow {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow, 18px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--seaglass-ink, #5f6e60);
+}
+
+.sp-games {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  justify-content: space-around;
+}
+
+.sp-game {
+  padding: 10px 0;
+  border-top: 1px solid var(--hair, #e7e3da);
+}
+.sp-game:first-child {
+  border-top: none;
+}
+
+/* The matchup: away crest · center · home crest. The center flexes to fill,
+   pinning the crests to the row's outer edges. For live/final the center holds
+   the score (prominent) over a small clock/period or "Final" sublabel; for
+   scheduled it holds the start time over the weekday. */
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sp-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 64px;
+  flex: none;
+}
+
+/* Cream circle with a seaglass-tinted ring: keeps ESPN's (light-surface) logos
+   legible while tying the crest to the warm theme. */
+.sp-crest {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper, #fffefb);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(95, 110, 96, 0.28),
+    0 1px 3px rgba(120, 82, 46, 0.1);
+  overflow: hidden;
+}
+.sp-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+/* Abbreviation fallback inside the crest when no logo is cached. */
+.sp-crest-abbr {
+  font-family: var(--ff-body);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--seaglass-ink, #5f6e60);
+}
+
+/* Live + final: the away-home score is the prominent center element, sitting
+   over a small status sublabel. One nowrap line, centered between the crests, so
+   it can never collide with the clock/period the way flanking scores did. */
+.sp-scoreline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--ink, #01000a);
+}
+.sp-score-sep {
+  color: var(--faint, #9a978f);
+  font-weight: 400;
+}
+/* A finished game's winner reads heavier; the loser recedes. */
+.sp-score-win {
+  font-weight: 600;
+}
+.sp-post .sp-score:not(.sp-score-win) {
+  color: var(--faint, #9a978f);
+}
+
+.sp-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+}
+
+/* Upcoming: the start time big, the weekday (when not today) under it. */
+.sp-time {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--ink, #01000a);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+.sp-day {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint, #9a978f);
+  line-height: 1;
+}
+
+/* The small status sublabel under the score: a pulsing dot (live only) + the
+   clock/period or "Final", sized like the scheduled weekday so the score reads
+   as the primary element. */
+.sp-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.sp-state {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--faint, #9a978f);
+}
+.sp-center-live .sp-state {
+  color: var(--live-red, #e5484d);
+  font-weight: 600;
+}
+.sp-center-final .sp-state {
+  color: var(--seaglass-ink, #5f6e60);
+}
+
+/* Pulsing dot marks a game in progress. */
+.sp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live-red, #e5484d);
+  flex: none;
+  animation: sp-pulse 2s ease-in-out infinite;
+}
+@keyframes sp-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-dot {
+    animation: none;
+  }
+}
+
+.sp-empty {
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-body, 28px);
+  line-height: 1.28;
+  color: var(--muted, #6b6b6b);
+}
