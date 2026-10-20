@@ -35,6 +35,26 @@ describe('pickTonight', () => {
     const junk = { id: 'e', title: 'Junk', lastCookedAt: 'yesterday' };
     expect(pickTonight({ recipes: [junk, pie] })?.recipe.title).toBe('Pie');
   });
+
+  // The "Cook Tonight" pin (tonightRecipeId) is tonight's PLANNED meal, so it wins
+  // over recency — even when the pinned recipe has never been cooked (the exact
+  // real case: the pinned Kale salad has lastCookedAt: null, so recency alone would
+  // never surface it).
+  it('shows the pinned recipe as Cook Tonight, outranking the most-recent cook', () => {
+    const pick = pickTonight({ recipes: [soup, stew, pie], tonightRecipeId: 'a' });
+    expect(pick?.recipe.title).toBe('Soup');
+    expect(pick?.meta).toBe('Cook Tonight');
+  });
+
+  it.each([
+    ['a non-matching pin (stale/deleted recipe)', 'zzz'],
+    ['a null pin', null],
+    ['an absent pin', undefined],
+  ])('falls back to current behavior on %s', (_label, tonightRecipeId) => {
+    const pick = pickTonight({ recipes: [stew, pie], tonightRecipeId });
+    expect(pick?.recipe.title).toBe('Pie'); // newest lastCookedAt
+    expect(pick?.meta).toBe('Recently cooked');
+  });
 });
 
 describe('isLocalPhotoUrl', () => {

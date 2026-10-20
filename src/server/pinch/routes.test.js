@@ -11,14 +11,14 @@ const fakeStore = () => ({ read: () => ({ recipes: RECIPES }) });
 
 // `dirs` plants directory entries where a file is expected — the cheapest
 // portable way to provoke a non-ENOENT read failure (EISDIR).
-function appWith({ photos = {}, dirs = [], store = fakeStore() } = {}) {
+function appWith({ photos = {}, dirs = [], store = fakeStore(), readPin } = {}) {
   const photosDir = join(mkdtempSync(join(tmpdir(), 'pinch-routes-')), 'photos');
   mkdirSync(photosDir, { recursive: true });
   for (const [name, body] of Object.entries(photos)) {
     writeFileSync(join(photosDir, name), body);
   }
   for (const d of dirs) mkdirSync(join(photosDir, d), { recursive: true });
-  return registerPinchRoutes(new Hono(), { store, photosDir });
+  return registerPinchRoutes(new Hono(), { store, photosDir, readPin });
 }
 
 const get = (app, path) => app.fetch(new Request(`http://localhost${path}`));
@@ -27,6 +27,21 @@ describe('pinch routes', () => {
   it('collection returns the library', async () => {
     const res = await get(appWith(), '/api/pinch/collection');
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ recipes: RECIPES });
+  });
+
+  it('merges tonightRecipeId when the pin resolves to a recipe in the library', async () => {
+    const res = await get(appWith({ readPin: () => 'a' }), '/api/pinch/collection');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: 'a' });
+  });
+
+  it.each([
+    ['the pin does not match any recipe (stale/deleted)', () => 'zzz'],
+    ['nothing is pinned', () => null],
+    ['no pin source is wired at all', undefined],
+  ])('omits tonightRecipeId when %s', async (_label, readPin) => {
+    const res = await get(appWith({ readPin }), '/api/pinch/collection');
     expect(await res.json()).toEqual({ recipes: RECIPES });
   });
 

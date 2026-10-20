@@ -54,8 +54,22 @@ function readPhotoContentType(photosDir, id) {
   }
 }
 
-export function registerPinchRoutes(app, { store, photosDir }) {
-  app.get('/api/pinch/collection', (c) => c.json(store.read()));
+export function registerPinchRoutes(app, { store, photosDir, readPin }) {
+  // The collection the viewer serves is the library (collection.json) with the
+  // optional "Cook Tonight" pin merged in as a top-level `tonightRecipeId` — the
+  // client contract from the 2026-10-19 data-requirements spec. The pin lives in
+  // a SEPARATE sibling file (see readTonightPin) so it survives the hourly sync;
+  // the two sources are joined here at read time. The pin is only surfaced when it
+  // resolves to a recipe actually in the library, so a stale pin (to a deleted
+  // recipe) degrades to no pin. readPin is optional — absent → plain library.
+  app.get('/api/pinch/collection', (c) => {
+    const data = store.read();
+    const pinnedId = readPin ? readPin() : null;
+    if (pinnedId && data.recipes.some((r) => r.id === pinnedId)) {
+      return c.json({ ...data, tonightRecipeId: pinnedId });
+    }
+    return c.json(data);
+  });
 
   // Locally-cached photo bytes.
   app.get('/api/pinch/photos/:id', (c) => {

@@ -9,7 +9,10 @@ export type Recipe = {
   cookUrl?: string | null;
 };
 
-export type Collection = { recipes: Recipe[] };
+// `tonightRecipeId` is the optional "Cook Tonight" pin: the id of the recipe a
+// user explicitly pinned as tonight's meal. The server surfaces it (merged from a
+// durable sibling pin file) only when it resolves to a recipe in `recipes`.
+export type Collection = { recipes: Recipe[]; tonightRecipeId?: string | null };
 
 // The sync stores Paprika's own photo URL verbatim when it is publicly
 // fetchable (resolvePhotoUrl in pinch-sync.mjs), so a recipe imported from the
@@ -70,10 +73,20 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
 
 // Which recipe the tile shows, and the caption explaining why:
 //
-//   1. the most recently cooked → "Recently cooked"
-//   2. else anything at all     → "From your library"
-export function pickTonight({ recipes }: Collection): TonightPick | null {
+//   0. an explicit pin (tonightRecipeId) → "Cook Tonight" — tonight's PLANNED meal
+//      wins over recency; guarded so a stale/non-matching id falls through.
+//   1. the most recently cooked          → "Recently cooked"
+//   2. else anything at all              → "From your library"
+export function pickTonight({ recipes, tonightRecipeId }: Collection): TonightPick | null {
   if (recipes.length === 0) return null;
+
+  // A pinned recipe is tonight's intended meal, so it outranks every recency
+  // signal. The server already only sends a resolvable id, but re-check here so
+  // this pure pick is self-contained (and a stale id can never win nothing).
+  if (tonightRecipeId) {
+    const pinned = recipes.find((r) => r.id === tonightRecipeId);
+    if (pinned) return { recipe: pinned, meta: 'Cook Tonight' };
+  }
 
   // Same-shape ISO-8601 timestamps sort lexically, so no Date parsing is needed
   // to find the newest — and an unparseable value can't silently become epoch.
