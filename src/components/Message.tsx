@@ -44,7 +44,7 @@ export function Message({ card, message }: Props) {
       {html ? (
         <div className="tile-body" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
-        <p className="tile-empty">Ask your Plow to post a {shown}.</p>
+        <p className="tile-empty">Ask Hive to post a {shown}.</p>
       )}
     </section>
   );

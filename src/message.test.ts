@@ -26,13 +26,6 @@ describe('cardPresentation (type decides styling, position decides placement)', 
       { className: 'message-card message-card--card5 c-clay message-card--empty' },
     ],
     [
-      'card 6 is the priorities slot',
-      '6',
-      null,
-      'priorities',
-      { className: 'message-card message-card--card6 c-lavender message-card--empty' },
-    ],
-    [
       'placement + accent come from the card number',
       '4',
       msg({ type: 'digest' }),
@@ -75,7 +68,7 @@ describe('Message renders the producer HTML generically', () => {
     // rejects empty `text` with 400 — so it's not a displayed state.
     const out = render('3', null);
     expect(out).toContain('tile-empty');
-    expect(out).toContain('Ask your Plow to post a weather.');
+    expect(out).toContain('Ask Hive to post a weather.');
     expect(out).not.toContain('tile-body');
   });
 

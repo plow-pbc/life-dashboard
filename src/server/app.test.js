@@ -290,27 +290,27 @@ describe('createApp', () => {
     });
 
     it('routes the derived self hostname to /api/* instead of 403', async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('rpi5mary');
+      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
       const fetcher = vi.fn().mockResolvedValue('FRESH');
       const app = appWith(fetcher);
-      const res = await app.fetch(new Request('http://rpi5mary/api/ical'));
+      const res = await app.fetch(new Request('http://my-kiosk/api/ical'));
       expect(res.status).toBe(200);
       expect(fetcher).toHaveBeenCalledTimes(1);
     });
 
     it('does not reject the derived self hostname at /banners/*', async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('rpi5mary');
+      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
       const app = appWith(vi.fn());
-      const res = await app.fetch(new Request('http://rpi5mary/banners/banner_1.png'));
+      const res = await app.fetch(new Request('http://my-kiosk/banners/banner_1.png'));
       // Static mount lives in server.js, so a passed guard falls through to
       // 404 here — the point is it is not 403'd by the host guard.
       expect(res.status).not.toBe(403);
     });
 
     it("rejects an FQDN that is not this machine's bare hostname", async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('rpi5mary');
+      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
       const app = appWith(vi.fn());
-      const res = await app.fetch(new Request('http://rpi5mary.tailnet.ts.net/api/ical'));
+      const res = await app.fetch(new Request('http://my-kiosk.tailnet.ts.net/api/ical'));
       expect(res.status).toBe(403);
     });
   });
@@ -557,6 +557,7 @@ describe('remote (non-loopback) access', () => {
   it.each([
     '/api/ical',
     '/api/banners',
+    '/api/config',
     '/api/pinch/collection',
     '/banners/x.png',
     '/',
@@ -573,6 +574,155 @@ describe('remote (non-loopback) access', () => {
       new Request('http://pi-host/healthz'),
     );
     expect(res.status).toBe(200);
+  });
+});
+
+describe('/api/config (runtime FAMILY_NAME)', () => {
+  const configApp = (familyName, remote = '127.0.0.1') =>
+    appWith(vi.fn(), { familyName, getRemote: () => remote });
+
+  it('serves familyName from the injected runtime value (loopback)', async () => {
+    const res = await configApp('THE SMITHS').fetch(new Request('http://localhost/api/config'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      familyName: 'THE SMITHS',
+      pinchBackendUrl: null,
+      pinchEmbedToken: null,
+    });
+  });
+
+  it('returns {familyName: null} when unset, letting the client use its default', async () => {
+    const res = await configApp(undefined).fetch(new Request('http://localhost/api/config'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      familyName: null,
+      pinchBackendUrl: null,
+      pinchEmbedToken: null,
+    });
+  });
+
+  // The crux of §4/Chunk 2: the label's source is a RUNTIME value, not a baked
+  // constant — the same client bundle renders different names purely from what
+  // the server read at start. So a Pi `.env` FAMILY_NAME change + viewer restart
+  // (which re-reads process.env → this param) changes the placeholder with NO
+  // client rebuild.
+  it('reflects a changed value with no rebuild (same bundle, restarted env)', async () => {
+    const before = await configApp('THE SMITHS').fetch(new Request('http://localhost/api/config'));
+    const after = await configApp('THE JONESES').fetch(new Request('http://localhost/api/config'));
+    expect(await before.json()).toEqual({
+      familyName: 'THE SMITHS',
+      pinchBackendUrl: null,
+      pinchEmbedToken: null,
+    });
+    expect(await after.json()).toEqual({
+      familyName: 'THE JONESES',
+      pinchBackendUrl: null,
+      pinchEmbedToken: null,
+    });
+  });
+
+  it('is loopback-only: a non-loopback caller is 403ed even with the bearer', async () => {
+    const res = await configApp('THE SMITHS', '100.64.0.7').fetch(
+      new Request('http://pi-host/api/config', { headers: auth() }),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('/api/config + CSP (PINCH_BACKEND_URL for the Meals tab)', () => {
+  const pinchApp = (pinchBackendUrl, remote = '127.0.0.1') =>
+    appWith(vi.fn(), { pinchBackendUrl, getRemote: () => remote });
+
+  it('exposes the normalized Pinch origin and scopes CSP frame-src to exactly it', async () => {
+    const res = await pinchApp('https://pinch-mt-preview.vercel.app').fetch(
+      new Request('http://localhost/api/config'),
+    );
+    expect(await res.json()).toEqual({
+      familyName: null,
+      pinchBackendUrl: 'https://pinch-mt-preview.vercel.app',
+      pinchEmbedToken: null,
+    });
+    const csp = res.headers.get('content-security-policy');
+    expect(csp).toContain('frame-src https://pinch-mt-preview.vercel.app;');
+    expect(csp).not.toContain('*'); // never a wildcard
+  });
+
+  it('normalizes a valid-but-messy origin (trailing slash stripped) for BOTH sinks', async () => {
+    const res = await pinchApp('https://pinch.example.com/').fetch(
+      new Request('http://localhost/api/config'),
+    );
+    expect((await res.json()).pinchBackendUrl).toBe('https://pinch.example.com');
+    expect(res.headers.get('content-security-policy')).toContain(
+      'frame-src https://pinch.example.com;',
+    );
+  });
+
+  it('serves /api/config no-store (runtime config must not outlive a restart)', async () => {
+    const res = await pinchApp('https://pinch.example.com').fetch(
+      new Request('http://localhost/api/config'),
+    );
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('unconfigured → null and NO frame-src (graceful, Meals shows its placeholder)', async () => {
+    const res = await pinchApp(undefined).fetch(new Request('http://localhost/api/config'));
+    expect((await res.json()).pinchBackendUrl).toBeNull();
+    expect(res.headers.get('content-security-policy')).not.toContain('frame-src');
+  });
+
+  it('rejects an invalid / injection value → null and NO frame-src', async () => {
+    for (const bad of [
+      'https://pinch.example.com/cook/1', // path
+      'http://pinch.example.com', // not https
+      'https://*.vercel.app', // wildcard
+      'https://pinch.example.com; script-src *', // injection attempt
+    ]) {
+      const res = await pinchApp(bad).fetch(new Request('http://localhost/api/config'));
+      expect((await res.json()).pinchBackendUrl, bad).toBeNull();
+      expect(res.headers.get('content-security-policy'), bad).not.toContain('frame-src');
+    }
+  });
+});
+
+describe('/api/config (PINCH_EMBED_TOKEN for the Meals embed auth)', () => {
+  const embedApp = (pinchEmbedToken, remote = '127.0.0.1') =>
+    appWith(vi.fn(), {
+      pinchBackendUrl: 'https://pinch.usesundays.com',
+      pinchEmbedToken,
+      getRemote: () => remote,
+    });
+
+  it('exposes the token so the Meals tab can build the embed URL', async () => {
+    const res = await embedApp('ro-abc123').fetch(new Request('http://localhost/api/config'));
+    expect(res.status).toBe(200);
+    expect((await res.json()).pinchEmbedToken).toBe('ro-abc123');
+  });
+
+  it('percent-encodes the token so it is URL-safe in the query string', async () => {
+    // A token with query-unsafe chars (space, +, /, =) must be encoded exactly once
+    // so the client can interpolate it verbatim into `?token=` without re-encoding.
+    const raw = 'a b+c/d=e';
+    const res = await embedApp(raw).fetch(new Request('http://localhost/api/config'));
+    const token = (await res.json()).pinchEmbedToken;
+    expect(token).toBe(encodeURIComponent(raw));
+    expect(decodeURIComponent(token)).toBe(raw);
+    expect(token).not.toMatch(/[ +/=]/); // no raw query-unsafe chars survive
+  });
+
+  it('trims and treats a blank/absent token as null (unconfigured → placeholder)', async () => {
+    for (const blank of [undefined, '', '   ']) {
+      const res = await embedApp(blank).fetch(new Request('http://localhost/api/config'));
+      expect((await res.json()).pinchEmbedToken, JSON.stringify(blank)).toBeNull();
+    }
+  });
+
+  it('is kept loopback-only: a non-loopback caller is 403ed even with the bearer', async () => {
+    const res = await embedApp('ro-secret', '100.64.0.7').fetch(
+      new Request('http://pi-host/api/config', { headers: auth() }),
+    );
+    expect(res.status).toBe(403);
+    // And the token bytes are not in the forbidden response body.
+    expect(await res.text()).not.toContain('ro-secret');
   });
 });
 

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { hourlyIndex, stepIndex, swipeDir } from '../banner';
+import { hourlyIndex, stepIndex, swipeDir, placeholderLabel } from '../banner';
 
 export function Banner() {
   const [banners, setBanners] = useState<string[]>([]);
+  // `loaded` flips true only after a successful /api/banners read, so the empty
+  // state is "we checked and there are no photos" — not "still loading" — and we
+  // never flash the placeholder before real photos arrive.
+  const [loaded, setLoaded] = useState(false);
   // Local displayed index. Initialized to the hourly auto-rotation baseline once the list
   // loads (and re-based if the count changes); a horizontal swipe steps it. Resets to the
   // hourly index on each page reload (the kiosk reloads every ~5 min) — that's fine.
@@ -16,9 +20,13 @@ export function Banner() {
         const res = await fetch('api/banners');
         if (!res.ok) return;
         const body = (await res.json()) as { banners: string[] };
-        if (!cancelled) setBanners(body.banners);
+        if (!cancelled) {
+          setBanners(body.banners);
+          setLoaded(true);
+        }
       } catch {
-        // Empty list collapses the row; the rest of the dashboard still loads.
+        // Unreachable API: leave `loaded` false so the cell stays blank until a
+        // later reload, rather than asserting an empty-folder placeholder.
       }
     })();
     return () => {
@@ -32,7 +40,23 @@ export function Banner() {
     if (banners.length > 0) setIndex(hourlyIndex(banners.length));
   }, [banners.length]);
 
-  if (banners.length === 0) return null;
+  // No photos: show the designed placeholder (warm gradient + frosted label pill)
+  // in the 2×1 cell, but only once we've confirmed the folder is empty.
+  if (banners.length === 0) {
+    if (!loaded) return null;
+    return (
+      <div className="photo photo--placeholder">
+        <div className="photo-ph-label">
+          <svg className="photo-ph-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <circle cx="8.5" cy="8.5" r="1.8" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+          <span className="photo-ph-text">{placeholderLabel(new Date())}</span>
+        </div>
+      </div>
+    );
+  }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLImageElement>) => {
     down.current = { x: e.clientX, y: e.clientY };

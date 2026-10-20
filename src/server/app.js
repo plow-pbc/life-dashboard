@@ -1,10 +1,13 @@
 import os from 'node:os';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { registerPinchRoutes } from './pinch/routes.js';
 import { isCalendarFeed } from './calendar.js';
+import { normalizePinchBackendUrl } from './pinchUrl.js';
 
 const defaultGetRemote = (c) => getConnInfo(c).remote.address;
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -16,6 +19,41 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15 MB decoded
 const MAX_B64_CHARS = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 1024; // ~4/3 + slack
 const MAX_REQUEST_BYTES = MAX_B64_CHARS + 4096; // + the small JSON envelope
+
+// Cached-logo ids are the fetcher's sha1 keys (40 hex chars); bound them to an
+// opaque token so a crafted id can never escape logosDir. Same shape + intent
+// as the recipe-photo route's id guard.
+const SPORTS_LOGO_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+// Content-types we will serve back for a cached logo. The sidecar is written by
+// our own fetcher from ESPN's response, but whitelist anyway so a tampered
+// `.type` can never set an arbitrary content-type on bytes we serve. SVG is
+// deliberately excluded (a scriptable document type); ESPN logos are PNG.
+const ALLOWED_LOGO_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
+
+// A missing sidecar falls back to PNG (what ESPN serves). Any other read failure
+// throws, matching the fail-loud operating point elsewhere in the server.
+function readLogoContentType(logosDir, id) {
+  try {
+    const t = readFileSync(join(logosDir, `${id}.type`), 'utf8')
+      .trim()
+      .toLowerCase()
+      // A content-type header can carry params (e.g. "image/png; charset=..."),
+      // so match on the media type alone.
+      .split(';')[0]
+      .trim();
+    return ALLOWED_LOGO_TYPES.has(t) ? t : 'image/png';
+  } catch (err) {
+    if (err.code === 'ENOENT') return 'image/png';
+    throw err;
+  }
+}
 
 export function createApp({
   fetchUpstream,
@@ -39,7 +77,43 @@ export function createApp({
   // Plow kiosk store, so there is nothing to POST into — 405, not 401.
   messageReadOnly = false,
   calendarStore,
+  // Self-fetching data tiles. Each is a store with get() returning the freshest
+  // snapshot (or null before the first upstream fetch lands). null here means
+  // the tile is unconfigured and its route never mounts — the SPA catch-all
+  // then answers the path, and the client component's res.json() rejects into
+  // its empty state, exactly like the recipe tile.
+  weatherStore = null,
+  sportsStore = null,
+  // The household's display name for the empty-banner placeholder. Read at
+  // runtime (server.js wires it from process.env.FAMILY_NAME) and served by
+  // GET /api/config, so a `.env` change + viewer restart updates the label with
+  // no client rebuild. null here → the client uses its own generic default.
+  familyName = null,
+  // The owner's configured Pinch backend origin (server.js wires it from
+  // process.env.PINCH_BACKEND_URL). It feeds BOTH the page CSP `frame-src` and the
+  // Meals iframe `src` (served via GET /api/config), so it is normalized to a bare
+  // https origin here; anything invalid/absent → null → no frame-src + the Meals
+  // tab shows its "set up recipes with Lifey first" placeholder.
+  pinchBackendUrl = null,
+  // The Pinch embed auth token (server.js wires it from process.env.PINCH_EMBED_TOKEN).
+  // DELIBERATELY SEPARATE from pinchBackendUrl: the origin is normalized to origin-only
+  // for the CSP frame-src, so the secret can never ride in it. The Meals iframe authenticates
+  // by carrying this token in the embed URL query (`/embed?token=<token>`), which Pinch reads
+  // as a server-side Bearer. It is read-only and can ROTATE, so it is a runtime value (a
+  // `.env` edit + viewer restart re-reads it, no client rebuild) — never baked into the bundle.
+  // Exposed (URL-encoded, see below) via GET /api/config, which is loopback-only, so the token
+  // never leaves the box. Blank/absent → null → the Meals tab shows its placeholder.
+  pinchEmbedToken = null,
 }) {
+  const pinchOrigin = normalizePinchBackendUrl(pinchBackendUrl);
+  // Percent-encode once, here at the boundary, so /api/config hands the client a value it can
+  // interpolate verbatim into `?token=` (no client-side encoding, no double-encode). A real
+  // token is opaque (JWT/base64url etc.) and may carry query-unsafe chars; encoding makes the
+  // embed URL well-formed regardless. Blank/non-string → null, treated as "unconfigured".
+  const pinchEmbedTokenEncoded =
+    typeof pinchEmbedToken === 'string' && pinchEmbedToken.trim()
+      ? encodeURIComponent(pinchEmbedToken.trim())
+      : null;
   const app = new Hono();
 
   // Deliberately unguarded: /healthz is a liveness probe open to all callers.
@@ -97,13 +171,27 @@ export function createApp({
   // is what keeps a bearer-authenticated write from becoming script on the
   // kiosk or a channel off-box: inline <style> is the tile contract; inline
   // script, event handlers, and non-self fetches/images are not.
+  //
+  // frame-src is CONFIG-DRIVEN: the Meals tab embeds the owner's configured Pinch
+  // recipe app in an iframe (src/components/MealsPane.tsx), and frame-src is the
+  // only gate (Pinch sends no X-Frame-Options/frame-ancestors). It is set to
+  // EXACTLY the one normalized https origin from PINCH_BACKEND_URL (pinchOrigin) —
+  // never a wildcard, never a path. When unconfigured there is NO frame-src, so
+  // framing falls back to default-src 'self' (no cross-origin framing at all).
+  const csp = [
+    "default-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "script-src 'self'",
+    ...(pinchOrigin ? [`frame-src ${pinchOrigin}`] : []),
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
   app.use('*', async (c, next) => {
     await next();
-    c.header(
-      'Content-Security-Policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
-        "connect-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
-    );
+    c.header('Content-Security-Policy', csp);
   });
 
   // Single wildcard covers every path including /banners/* and the SPA mounts
@@ -114,6 +202,35 @@ export function createApp({
   app.get('/api/version', (c) =>
     c.json({ sha: version?.sha ?? null, deployedAt: version?.deployedAt ?? null }),
   );
+
+  // /api/config: the kiosk browser's runtime read for settings that would
+  // otherwise be baked into the client bundle. Registered after the wildcard
+  // remoteGuard and deliberately NOT in its off-box allowlist (isProducerWrite /
+  // isVersionRead), so it is loopback-only — a non-loopback caller is 403'd.
+  // FAMILY_NAME is personal; it must never be readable off-box. Served from
+  // process.env.FAMILY_NAME (wired in server.js) so a `.env` change + viewer
+  // restart updates the banner placeholder with no client rebuild.
+  //
+  // pinchBackendUrl is the SAME normalized origin the CSP frame-src uses (or null),
+  // so the Meals iframe src and the frame-src that must allow it can never disagree.
+  //
+  // pinchEmbedToken is the percent-encoded read-only Pinch embed token (or null). The Meals
+  // tab builds `<origin>/embed?token=<pinchEmbedToken>` to render the recipe LIBRARY instead
+  // of Pinch's login gate. It is loopback-only like the rest of this response, so the token
+  // never leaves the box; and it is a RUNTIME value, so a rotated token re-pasted into the
+  // Pi `.env` + a viewer restart takes effect with no client rebuild.
+  //
+  // no-store: this is RUNTIME config (changes on a `.env` edit + viewer restart), so
+  // a cached copy must never outlive a restart — else the Meals tab could keep
+  // framing (or keep hiding) the old value after the owner's Pinch URL/token changed.
+  app.get('/api/config', (c) => {
+    c.header('cache-control', 'no-store');
+    return c.json({
+      familyName: familyName ?? null,
+      pinchBackendUrl: pinchOrigin ?? null,
+      pinchEmbedToken: pinchEmbedTokenEncoded,
+    });
+  });
 
   // /api/ical: proxies the upstream ICS with a single-slot 60s cache. Installs
   // without a pushed feed serve that cache stale on error; direct-write mode
@@ -156,6 +273,50 @@ export function createApp({
   // throw here is a genuine error and is allowed to surface as a 500 rather
   // than be masked as "no banners".
   app.get('/api/banners', async (c) => c.json({ banners: await listBanners() }));
+
+  // /api/weather + /api/sports: the self-fetching data tiles. Reads only,
+  // registered after the wildcard guard above so they inherit the loopback +
+  // Host restrictions like every other read. Each serves its store's latest
+  // snapshot; a null snapshot (before the first upstream fetch) is 503 so the
+  // client retries on its next page reload rather than caching an empty body.
+  if (weatherStore) {
+    app.get('/api/weather', (c) => {
+      const data = weatherStore.get();
+      return data ? c.json(data) : c.text('weather unavailable', 503);
+    });
+  }
+  if (sportsStore) {
+    app.get('/api/sports', (c) => {
+      const games = sportsStore.get();
+      return games ? c.json({ games }) : c.text('sports unavailable', 503);
+    });
+
+    // Locally-cached team logos. Each game's team side points here (a `self`
+    // path) because the kiosk CSP (`img-src 'self' data:`) forbids loading the
+    // remote ESPN logo directly; the fetcher mirrors the bytes into logosDir.
+    // Mirrors the recipe-photo route: id is an opaque sha1 key bounded by the
+    // whitelist so it can never escape logosDir, nosniff binds the declared
+    // type, and a missing file is a routine 404 (the cache outruns a snapshot).
+    const logosDir = sportsStore.logosDir;
+    if (logosDir) {
+      app.get('/api/sports/logo/:id', (c) => {
+        const id = c.req.param('id');
+        if (!SPORTS_LOGO_ID_RE.test(id)) return c.text('invalid logo id', 400);
+        try {
+          return c.body(readFileSync(join(logosDir, id)), 200, {
+            'content-type': readLogoContentType(logosDir, id),
+            // Keys are content-stable (sha1 of the source URL), so the bytes
+            // behind one never change — cache hard and skip the refetch.
+            'cache-control': 'public, max-age=604800, immutable',
+            'x-content-type-options': 'nosniff',
+          });
+        } catch (err) {
+          if (err.code === 'ENOENT') return c.text('logo not found', 404);
+          throw err;
+        }
+      });
+    }
+  }
 
   // /api/pinch/*: the Cook Tonight recipe tile's reads. Registered after the
   // wildcard guard above, so these inherit the loopback + Host restrictions

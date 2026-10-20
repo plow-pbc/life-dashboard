@@ -1,17 +1,22 @@
 /* =====================================================================
-   WARM — the single baked-in theme, trimmed from Mary's live stylesheet
-   (life-dashboard). Her 3-theme tokenized system reduced to the warm
-   values folded into :root; only the rules this viewer renders are kept.
-   No theme switcher.
+   WARM — the single baked-in theme, adapted from the owner's target mockup
+   mockups/dashboard-warm-cal3week.html. A 4-column grid with a warm palette:
+   photo (2×1) + weather + sports across the top, affirmation + cook-tonight
+   on row 2, and the rolling 3-week calendar (month grid + up-next rail)
+   filling the bottom. No theme switcher.
+
+   Kiosk hardening (portrait rotation, no selection, no overscroll) is kept
+   from the viewer; the design tokens and card chrome are the mockup's.
    ===================================================================== */
 
 :root {
   /* ---- fonts (bundled via @fontsource, imported in main.tsx) ---- */
   --ff-display: 'Instrument Serif', serif; /* big figures */
+  --ff-serif: 'Instrument Serif', serif; /* alias: Weather/Sports use --ff-serif */
   --ff-body: 'DM Sans', system-ui, sans-serif; /* running copy */
   --ff-mono: 'DM Mono', monospace; /* eyebrows / captions / ticks */
 
-  /* ---- warm palette ---- */
+  /* ---- warm palette (from the mockup's :root) ---- */
   --chalk: #fafaf7;
   --paper: #fffefb;
   --ink: #01000a;
@@ -19,22 +24,25 @@
   --faint: #9a978f;
   --hair: #e7e3da;
 
-  /* deepened category inks (eyebrow/accent text) — the only accent tokens the
-     kept components consume; the base palette swatches were widget/legend-only */
+  --cornflower: #74a7f6;
+  --lavender: #d6a3f8;
+  --apricot: #fba464;
+  --clay: #c07355;
+  --seaglass: #a5b2a7;
+
   --cornflower-ink: #3470c5;
+  --apricot-ink: #c06a2c;
   --seaglass-ink: #5f6e60;
   --clay-ink: #8a4a30;
   --lavender-ink: #8a5cb8;
 
-  /* semantic "live" red — a shared theme token producer widgets reference
-     (e.g. the sports live dot), not a palette accent */
+  /* semantic "live" red — a shared theme token producer widgets reference */
   --live-red: #e5484d;
 
-  /* ---- unified type tokens ---- */
+  /* ---- type tokens (mockup scale) ---- */
+  --t-figure: 92px; /* Weather temperature */
   --t-body: 28px;
-  --t-card: 22px; /* message-card body: smaller than --t-body so a full producer message fits unclamped
-                     (producers cap rendered-card text — see the SKILL.md bundles under
-                     seed-life-dashboard-agent ref/team-skills/) */
+  --t-card: 22px; /* legacy prose cards */
   --t-eyebrow: 18px;
   --t-location: 15px;
 
@@ -46,30 +54,44 @@
   /* ---- layout ---- */
   --gap: 16px;
   --pad: 26px;
+  /* The height ONE Home grid row had at full viewport, before the bottom nav
+     existed: the 6 rows split (100vh − top/bottom pad − the 5 inter-row gaps).
+     The top two widget rows are pinned to this so they keep their pre-nav
+     height; the calendar region flexes to absorb the nav's height instead. */
+  --top-row: calc((100vh - 2 * var(--pad) - 5 * var(--gap)) / 6);
 
-  /* ---- warm card treatment ---- */
+  /* ---- warm card treatment (mockup .card) ---- */
   --card-bg: var(--paper);
   --card-border: 1px solid rgba(0, 0, 0, 0.05);
   --card-radius: 24px;
   --card-shadow: 0 6px 18px rgba(120, 82, 46, 0.06), 0 1px 2px rgba(120, 82, 46, 0.05);
   --photo-bg:
-    radial-gradient(ellipse at 30% 45%, rgba(214, 163, 248, 0.45), transparent 55%),
-    radial-gradient(ellipse at 70% 65%, rgba(116, 167, 246, 0.4), transparent 55%),
+    radial-gradient(ellipse at 28% 60%, rgba(214, 163, 248, 0.45), transparent 55%),
+    radial-gradient(ellipse at 62% 35%, rgba(251, 164, 100, 0.4), transparent 55%),
+    radial-gradient(ellipse at 85% 70%, rgba(116, 167, 246, 0.38), transparent 55%),
     linear-gradient(180deg, #efe7d8 0%, #d8c4a8 100%);
 }
 
-/* ---- category accents (per-card eyebrow tint) ---- */
+/* ---- category accents (per-card eyebrow/badge tint, from the mockup) ---- */
 .c-cornflower {
   --accent-ink: var(--cornflower-ink);
+  --accent: var(--cornflower);
+}
+.c-apricot {
+  --accent-ink: var(--apricot-ink);
+  --accent: var(--apricot);
 }
 .c-seaglass {
   --accent-ink: var(--seaglass-ink);
+  --accent: var(--seaglass);
 }
 .c-clay {
   --accent-ink: var(--clay-ink);
+  --accent: var(--clay);
 }
 .c-lavender {
   --accent-ink: var(--lavender-ink);
+  --accent: var(--lavender);
 }
 
 * {
@@ -82,36 +104,44 @@ html {
   height: 100%;
   overflow: hidden;
   background: var(--chalk);
-  /* TOUCH KIOSK HARDENING. This is a read-only display — nothing is ever selected.
-     user-select inherits, so this disables selection everywhere; tap-highlight is
-     killed so taps don't flash; overscroll:none stops page bounce/pull-to-refresh. */
+  /* TOUCH KIOSK HARDENING. Read-only display — nothing is ever selected. */
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
 
-/* Part of the same hardening: -webkit-user-drag does NOT inherit, so unlike
-   user-select above it has to be set on the draggable elements themselves.
-   Scoped to img rather than enumerated per photo — enumerating leaves the next
-   one uncovered for exactly the reason the recipe photo was.
-
-   Blink/WebKit only, which covers the kiosk (Chromium). Banner.tsx also carries
-   the standard draggable={false}; in a non-Blink dev browser that one image is
-   the only one guarded. Not worth a second mechanism for a non-target engine. */
+/* -webkit-user-drag does not inherit, so set it on the draggable elements. */
 img {
   -webkit-user-drag: none;
 }
 
 /*
- * Portrait kiosk rotation. The signal is landscape (e.g. 1920×1080) but the
- * monitor is mounted in portrait, so we rotate the body to compensate. The
- * body lays out in portrait dimensions (width: 100vh, height: 100vw) and
- * then rotates 90° CCW around its top-left, translating down so it lands
- * inside the landscape viewport.
+ * Portrait orientation is owned by the DISPLAY, not this stylesheet.
  *
- * If the monitor is rotated the other way (90° CW physically), flip to
- * `rotate(90deg)` and `translate(100vw, 0)`.
+ * This page used to rotate itself: `transform: translate(0,100vh) rotate(-90deg)`
+ * on a portrait-dimensioned body, to fit a landscape signal onto a
+ * portrait-mounted monitor. That full-page transform was the root cause of two
+ * wall complaints:
+ *   1. Blurry/pixelated text — a page-level transform promotes the whole page
+ *      to a composited GPU layer that Chromium rasterizes to an offscreen
+ *      texture and then samples through the rotation; on the Pi's GPU that
+ *      resampling softens every glyph. (Nothing else in this repo rotates —
+ *      the kiosk is X11 `chromium --kiosk`, no compositor/xrandr rotation — so
+ *      the CSS transform was doing it all, and doing it badly.)
+ *   2. Dead touch-scroll — a physical-vertical swipe became a *horizontal*
+ *      gesture in the page's pre-rotation coordinate space, which the scroll
+ *      containers' `touch-action: pan-y` rejects, so they never panned.
+ *
+ * Fix: render natively at the viewport size and let the DISPLAY be rotated to
+ * portrait by the compositor. This kiosk is Wayland (labwc + kanshi; Chromium
+ * runs `--ozone-platform=wayland`), so portrait is owned by kanshi —
+ * `output <name> transform 90` in ~/.config/kanshi/config (a Pi-side config,
+ * not shipped in this repo; see docs/kiosk-rotation.md). The page then renders
+ * directly into a portrait framebuffer — glyphs are rasterized once, in place
+ * (crisp) — and labwc's `<touch mapToOutput>` rotates touch coordinates with
+ * the output, so a physical-vertical swipe is a vertical gesture again (scroll
+ * works).
  */
 body {
   margin: 0;
@@ -119,10 +149,8 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vh;
-  height: 100vw;
-  transform-origin: top left;
-  transform: translate(0, 100vh) rotate(-90deg);
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--chalk);
@@ -133,100 +161,190 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The body's rotation matches the physical monitor mount, so CSS-portrait
- * coordinates map 1:1 to what the user sees. Structural layout is the seed's
- * three-row portrait grid (alert+message+weather up top, calendar middle,
- * digest bottom); visual treatment is Mary's warm theme. inset:0 makes .app
- * fill the body (a plain height:100% can drop to content-sized inside the
- * rotated/absolute body). */
+/* ============ APP SHELL (bottom-nav) ============
+   A hash-routed content pane above a persistent bottom nav. The shell fills the
+   viewport (body is the positioned ancestor); the pane takes all height except
+   the nav. Each pane root is `position:absolute; inset:0` so it fills the pane —
+   which is why .app (Home) is unchanged: its inset:0 now resolves against .pane
+   instead of body, i.e. the viewport minus the nav. */
+.shell {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--chalk);
+}
+.pane {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Bottom nav: three finger-sized icon+label tap targets, active one highlighted
+   with a cornflower top accent + wash. Touch-friendly (large hit area, no tap
+   highlight flash, manipulation to kill the 300ms delay). */
+.bottom-nav {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--paper);
+  border-top: 1px solid var(--hair);
+  box-shadow: 0 -4px 18px rgba(120, 82, 46, 0.06);
+  z-index: 2;
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 116px;
+  padding: 14px 0 18px;
+  text-decoration: none;
+  color: var(--faint);
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: inset 0 3px 0 transparent;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.nav-item .nav-icon {
+  width: 36px;
+  height: 36px;
+  display: block;
+}
+.nav-item .nav-icon * {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.nav-item.is-active {
+  color: var(--cornflower-ink);
+  background: rgba(116, 167, 246, 0.1);
+  box-shadow: inset 0 3px 0 var(--cornflower);
+}
+
+/* Calendar pane: CalendarMonth + UpNext at full viewport (minus nav). Reuses the
+   .month / .rail cards and their flex basis; the full height is the "roomier". */
+.cal-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: var(--gap);
+  padding: var(--pad);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Meals pane: the Pinch app embedded, filling the pane above the nav. */
+.meals-pane {
+  position: absolute;
+  inset: 0;
+}
+.meals-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: var(--paper);
+}
+/* Meals placeholder when no Pinch backend is configured yet. */
+.meals-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: var(--pad);
+  background: var(--chalk);
+}
+.meals-empty__icon {
+  width: 44px;
+  height: 44px;
+  color: var(--seaglass-ink);
+  opacity: 0.8;
+}
+.meals-empty__icon * {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.meals-empty__text {
+  margin: 0;
+  max-width: 24ch;
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-body);
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* ============ THE GRID ============
+   4 columns × 6 rows, matching the mockup's .grid. Photo spans cols 1–2 of
+   row 1; weather col 3; sports col 4. Row 2: affirmation cols 1–2, cook
+   tonight cols 3–4. The calendar region fills rows 3–6 across all columns. */
 .app {
   position: absolute;
   inset: 0;
+  /* Equal frame margin on all four sides. Rows 1–2 (the widget tiles) are pinned
+     to --top-row, their full-viewport (pre-nav) height, so the bottom nav never
+     compresses them. Rows 3–6 are 1fr, so the calendar region (.cal-region,
+     rows 3–7) flexes to take whatever height remains — it absorbs the nav's bite
+     and simply gets shorter. Both calendar panes scroll, so nothing is clipped. */
   padding: var(--pad);
   display: grid;
-  /* 3 equal columns. The photo spans 2 and weather takes the third on the top
-     row; 1/2/3 top row (bannerless) or photo+3 (banner) then 1/2; 5 sports and
-     6 priorities share the next row, sports one column, priorities two;
-     calendar fills the slack; digest is a full-width row at 2× the card-row
-     height. The two card rows share one height (--row-h) so they read as a
-     consistent band. */
-  --row-h: 15rem;
-  /* Height of the recipe strip; see .pinch-tile for why it exists and what it
-     costs. Deliberately short — a wide band, not another full-height card. */
-  --cook-h: 8rem;
-  grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
-  grid-template-areas:
-    'card1    card2    card3'
-    'card5    card6    card6'
-    'calendar calendar calendar'
-    'card4    card4    card4';
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: var(--top-row) var(--top-row) repeat(4, 1fr);
   gap: var(--gap);
 }
 
-/* Banners present → photo (2 tiles wide) shares the top row with weather; 1/2/3
- * top row (bannerless) or photo+3 (banner) then 1/2; 5 sports and 6 priorities
- * share the next row, sports one column, priorities two; calendar fills the
- * slack and digest is a full-width row at 2× the card-row height. Gains one
- * --row-h row over the bannerless layout, since card 5 used to share the
- * alert/affirmation row: that row becomes alert (double-width — it carries
- * the longer line) + affirmation, and sports+priorities follows it. Deploys
- * without a ./banners/ folder render <Banner/> as null, so this override
- * doesn't match and .app stays the bannerless layout. */
-.app:has(.banner) {
-  grid-template-rows: var(--row-h) var(--row-h) var(--row-h) 1fr calc(var(--row-h) * 2);
-  grid-template-areas:
-    'banner   banner   card3'
-    'card1    card1    card2'
-    'card5    card6    card6'
-    'calendar calendar calendar'
-    'card4    card4    card4';
+/* ---- shared card chrome (mockup .card) ---- */
+.card {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--pad);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--card-shadow);
 }
 
-/* Allocates the strip's row only when the tile is really on screen — the same
- * bargain .app:has(.banner) strikes for the photo. See .pinch-tile for when
- * that is and why. */
-.app:has(.pinch-tile) {
-  grid-template-rows: var(--row-h) var(--row-h) var(--cook-h) 1fr calc(var(--row-h) * 2);
-  grid-template-areas:
-    'card1    card2    card3'
-    'card5    card6    card6'
-    'cook     cook     cook'
-    'calendar calendar calendar'
-    'card4    card4    card4';
+/* ---- shared head row (eyebrow only), used by affirmation + rail ---- */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
-
-/* Areas come from .app:has(.banner) above; rows need their own declaration
- * here because the banner adds a row on top of what .pinch-tile adds. */
-.app:has(.banner):has(.pinch-tile) {
-  grid-template-rows: var(--row-h) var(--row-h) var(--row-h) var(--cook-h) 1fr calc(var(--row-h) * 2);
-  grid-template-areas:
-    'banner   banner   card3'
-    'card1    card1    card2'
-    'card5    card6    card6'
-    'cook     cook     cook'
-    'calendar calendar calendar'
-    'card4    card4    card4';
-}
-
-/* ---- shared type ---- */
 .eyebrow {
   font-family: var(--ff-mono);
   font-weight: 500;
   font-size: var(--t-eyebrow);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  /* warm: the card's category accent (resolved here so --accent-ink inherits
-     from the card, not :root) */
   color: var(--accent-ink, var(--muted));
 }
 
-/* ============ PHOTO — Banner image over the gradient placeholder ============ */
+/* ============ TOP ROW — photo / weather / sports ============ */
 .photo {
-  grid-area: banner;
-  /* Fill the 2-wide top-row cell; the image (object-fit: cover) crops to the
-   * cell's width/height with no distortion, so the photo's aspect adapts to the
-   * grid instead of forcing its own. */
+  grid-column: 1 / 3;
+  grid-row: 1 / 2;
   width: 100%;
   height: 100%;
   border-radius: var(--card-radius);
@@ -234,6 +352,7 @@ body {
   overflow: hidden;
   position: relative;
   background: var(--photo-bg);
+  box-shadow: 0 6px 18px rgba(120, 82, 46, 0.08);
 }
 .photo .banner {
   position: absolute;
@@ -243,70 +362,95 @@ body {
   object-fit: cover;
   object-position: center;
   display: block;
-  /* horizontal SWIPE changes the photo (no visible UI). The banner is NOT a
-     scroll region, so claim horizontal gestures for the handler; pan-y keeps
-     any vertical page scroll. */
+  /* horizontal SWIPE changes the photo; pan-y keeps vertical page scroll. */
   touch-action: pan-y;
 }
 
-/* The shared card chrome — the paper surface every panel sits on. Declared once
-   for the three panels that wear it; each adds only its own layout on top. */
-.message-card,
-.calendar-panel,
-.pinch-tile {
-  background: var(--card-bg);
-  border: var(--card-border);
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
+/* ---- empty-banner placeholder: warm gradient + frosted label pill ----
+   Shown in the 2×1 photo cell when there are no photos yet. Soft apricot (top)
+   → lavender (mid-left) → seaglass (bottom-right) over a warm base, with a clay
+   whisper bottom-left — all from the Warm theme accents. */
+.photo--placeholder {
+  background:
+    radial-gradient(ellipse 85% 60% at 60% 0%, rgba(251, 164, 100, 0.5), transparent 60%),
+    radial-gradient(ellipse 70% 62% at 24% 42%, rgba(214, 163, 248, 0.45), transparent 62%),
+    radial-gradient(ellipse 78% 66% at 86% 96%, rgba(165, 178, 167, 0.58), transparent 62%),
+    radial-gradient(ellipse 60% 52% at 10% 92%, rgba(192, 115, 85, 0.16), transparent 60%),
+    linear-gradient(155deg, #f4ebe0 0%, #ece2d7 60%, #e5ddd8 100%);
+}
+.photo-ph-label {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+.photo-ph-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: block;
+}
+.photo-ph-icon * {
+  stroke: #3a332c;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.photo-ph-text {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  color: #3a332c;
+  white-space: nowrap;
 }
 
-/* ============ MESSAGE CARDS (alert / message / weather / digest) ============ */
-.message-card {
-  padding: var(--pad);
-  overflow: hidden;
+.cell-weather {
+  grid-column: 3 / 4;
+  grid-row: 1 / 2;
+}
+.cell-sports {
+  grid-column: 4 / 5;
+  grid-row: 1 / 2;
+}
+
+/* ============ ROW 2 — affirmation / cook tonight ============ */
+.cell-affirmation {
+  grid-column: 1 / 3;
+  grid-row: 2 / 3;
   min-width: 0;
   min-height: 0;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
-/* Grid placement by card number (producers decide the slot; left-to-right). */
-.message-card--card1 {
-  grid-area: card1;
-}
-.message-card--card2 {
-  grid-area: card2;
-}
-.message-card--card3 {
-  grid-area: card3;
-}
-.message-card--card4 {
-  grid-area: card4;
-}
-.message-card--card5 {
-  grid-area: card5;
-}
-.message-card--card6 {
-  grid-area: card6;
-}
-.message-card--empty {
-  opacity: 0.5;
-}
-
-/* ---- generic tile body ----
-   The producer's HTML fragment lands inside .tile-body verbatim. The viewer
-   styles only the generic prose path (.message-text); a widget (weather,
-   sports, …) ships its OWN <style> inside the posted HTML, so the viewer carries
-   no per-widget CSS and never changes when a widget is added or restyled. The
-   one shared contract is the theme tokens (--ink / --muted / fonts / …) those
-   producer styles reference. */
-.tile-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
+.affirmation {
   flex: 1;
-  overflow: hidden;
+  min-width: 0;
+}
+.affirmation .note {
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-body);
+  line-height: 1.38;
+  color: var(--ink);
+}
+.affirmation-date {
+  margin-top: auto;
+  padding-top: 14px;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: var(--t-eyebrow);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lavender-ink);
 }
 .tile-empty {
   margin: 0;
@@ -318,170 +462,73 @@ body {
   color: var(--muted);
 }
 
-/* Prose lines (alert / message / digest). The clamp replaces Mary's JS
-   shrink-to-fit: cards are fixed-height grid cells, so overflow ellipsizes at
-   a whole line. */
-.message-text {
+.cell-cook {
+  grid-column: 3 / 5;
+  grid-row: 2 / 3;
+  padding: 0; /* the pinch strip / widget placeholder owns its interior padding */
+}
+
+/* ---- empty widget-slot placeholder (shown when no recipe is configured) ----
+   A designed invite in the clay-accented slot, same spirit as the empty-banner
+   placeholder: a soft clay wash, a small "add" glyph, and a warm human line
+   inviting the user to set a widget up here via Plow. Fills the .cell-cook card
+   (which has padding:0 and overflow:hidden, so the wash is clipped to the card
+   radius). */
+.widget-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: var(--pad);
+  background:
+    radial-gradient(ellipse 90% 75% at 50% 26%, rgba(192, 115, 85, 0.12), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 85% 100%, rgba(192, 115, 85, 0.07), transparent 65%);
+}
+.widget-ph__icon {
+  width: 34px;
+  height: 34px;
+  display: block;
+  margin-bottom: 4px;
+  color: var(--clay-ink);
+  opacity: 0.85;
+}
+.widget-ph__icon * {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.widget-ph__lead {
   margin: 0;
+  font-family: var(--ff-body);
+  font-weight: 400;
+  font-size: var(--t-body);
+  line-height: 1.25;
+  color: var(--ink);
+}
+.widget-ph__sub {
+  margin: 0;
+  max-width: 40ch;
   font-family: var(--ff-body);
   font-weight: 300;
   font-size: var(--t-card);
-  line-height: 1.38;
-  color: #4a4540;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 7;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-/* Card 4 (digest) is its own full-width row at 2× the card-row height → room for
-   the full weekly summary, well above the shared 5-line clamp. */
-.message-card--card4 .message-text {
-  -webkit-line-clamp: 16;
-}
-
-/* ============ LIFE CALENDAR ============ */
-.calendar-panel {
-  grid-area: calendar;
-  padding: 24px 22px;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.header {
-  margin-bottom: 4px;
-}
-.header h1 {
-  margin: 0;
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: var(--t-eyebrow);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  line-height: 1.35;
   color: var(--muted);
 }
 
-.event-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  flex: 1;
-  /* Calendar scroll container: a finger-drag pans the agenda vertically
-     instead of clipping events below the fold. min-height:0 lets this flex
-     child shrink so overflow actually engages; touch-action:pan-y commits the
-     drag to a vertical pan (html already sets user-select:none, so the drag
-     never starts a text selection). Mouse/trackpad scrolling is unaffected. */
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-.event-row {
-  display: grid;
-  /* narrow fixed left rail (date over time) → freed width goes to title/location */
-  grid-template-columns: 7rem 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 1.25rem;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--hair);
-}
-.event-row:last-child {
-  border-bottom: none;
-}
-/* left rail: date on top, time stacked directly under it */
-.event-when {
-  grid-row: 1 / span 2;
-  align-self: start;
-  padding-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-variant-numeric: tabular-nums;
-}
-.event-date {
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-  line-height: 1.2;
-  white-space: nowrap; /* compact ranges stay on one line → date + ALL DAY = 2 lines max */
-}
-.event-time {
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
-  line-height: 1.2;
-}
-.event-title {
-  font-family: var(--ff-body);
-  font-weight: 500;
-  font-size: var(--t-body);
-  line-height: 1.14;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.event-location {
-  font-family: var(--ff-body);
-  font-weight: 300;
-  font-size: var(--t-location);
-  color: var(--muted);
-  line-height: 1.3;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.empty-state,
-.error-state {
-  margin-top: 2rem;
-  color: var(--muted);
-  font-family: var(--ff-body);
-  font-weight: 300;
-  font-size: var(--t-body);
-}
-
-.calendar-updated {
-  margin: auto 0 0;
-  font-family: var(--ff-mono);
-  font-size: var(--t-eyebrow);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.error-state {
-  color: var(--clay-ink);
-}
-
-/* ============ COOK TONIGHT (recipe strip) ============
-   A wide, short band: photo at the left in a fixed square, title block filling
-   the rest. Laid out as a row rather than a column because it spans all three
-   grid columns — a stacked photo-over-text tile would waste the width and force
-   a taller row.
-
-   CANONICAL note on the strip's lifecycle — the --cook-h token,
-   .app:has(.pinch-tile) and CookTonight.tsx all point here rather than restate
-   it, because keeping four copies in step is what kept drifting.
-
-   The tile renders nothing unless there is a recipe to show: no snapshot
-   configured, an empty library, and a failed fetch all produce no markup, so
-   .app:has(.pinch-tile) does not match and no row is allocated. The accepted
-   cost is one layout shift per load — the calendar paints at full height and
-   gives up --cook-h plus a --gap when /api/pinch/collection resolves after
-   first paint. That is the deliberate trade: the alternative is every
-   pinch-less kiosk permanently surrendering the same space to a blank card. */
+/* ============ COOK TONIGHT (recipe strip inside its row-2 card) ============
+   The component renders a .pinch-tile; here it fills its .cell-cook card as a
+   row — square photo on the left, title block on the right. When no recipe is
+   configured it renders the .widget-ph invite above instead (never a blank
+   cell). */
 .pinch-tile {
-  grid-area: cook;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   min-width: 0;
   min-height: 0;
@@ -489,48 +536,38 @@ body {
   align-items: stretch;
   gap: var(--pad);
 }
-
-/* Square photo sized off the row height so the strip's height is the single
-   knob (--cook-h) — no second dimension to keep in sync. */
+/* When the recipe is tappable the tile is an <a>: strip the anchor's default
+   underline/color so it looks identical to the read-only section, and show a
+   pointer affordance. A top-level tap navigates to Pinch's cooking mode. */
+a.pinch-tile--tappable {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 .pinch-photo--tile,
 .pinch-photo--placeholder {
   flex: 0 0 auto;
-  width: var(--cook-h);
+  /* square keyed off the card height so there's a single knob */
+  aspect-ratio: 1;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-
 .pinch-photo--placeholder {
   background: var(--hair);
 }
-
 .pinch-tile__body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
-  /* The vertical budget, since the title is clamped against it:
-
-       eyebrow  --t-eyebrow 18px x inherited 1.3 = 23px
-       title    --t-body    28px x 1.25          = 35px
-       caption  same as eyebrow                  = 23px
-       gaps     2 x 4px                          =  8px
-       padding  2 x 8px                          = 16px
-                                                  ----
-                                                  105px of --cook-h (128px)
-
-     A second title line (+35px) would exceed it, which is why the title is
-     clamped to one below. Raising --t-body or --t-eyebrow, or lowering
-     --cook-h, eats the 23px of slack — check against these numbers first.
-     Horizontal padding stays --pad so the text aligns with the cards. */
-  padding: 8px var(--pad) 8px 0;
-  /* `safe` so that if the budget is ever exceeded the overflow goes off the
-     bottom rather than being split across both edges, which would shave the
-     eyebrow off the top. */
-  justify-content: safe center;
+  padding: var(--pad) var(--pad) var(--pad) 0;
+  /* Top-align so the "Cook Tonight" eyebrow sits at the top of the tile, in line
+     with the other tiles' eyebrows (Weather/Sports/Affirmation) — the body's top
+     padding is --pad, matching the .card padding the siblings' heads sit under. */
+  justify-content: flex-start;
 }
-
 .pinch-tile__eyebrow {
   font-family: var(--ff-mono);
   font-weight: 500;
@@ -540,45 +577,426 @@ body {
   color: var(--clay-ink);
   margin: 0;
 }
-
-/* The clamp lives on an inner span, NOT on this element, for two reasons that
-   each broke it before: a flex item is blockified, so -webkit-box computes to
-   flow-root and the clamp is inert; and the overflow:hidden a clamp needs would
-   give this element an automatic minimum size of zero, making it the only item
-   flex can shrink below its content — which is how the title once rendered at
-   0px between a correct-looking eyebrow and caption. The span is not a flex
-   item and this element keeps a content-based minimum. */
 .pinch-tile__title {
   font-family: var(--ff-display);
   font-weight: 400;
-  font-size: var(--t-body);
-  /* 1.25, not the tighter 1.1 a display serif would normally take: the ink box
-     of Instrument Serif runs taller than a 1.1 line box, and the clamp below
-     clips at the box edge. Giving the ink room in the LINE box is the fix —
-     padding on the clamp box would instead open a window that the clamped
-     second line paints into. */
-  line-height: 1.25;
+  font-size: 42px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   color: var(--ink);
   margin: 0;
 }
-
-/* One line only — see the budget arithmetic on .pinch-tile__body. No padding
-   here: a clamp sizes its CONTENT box to N lines but clips at the PADDING box,
-   so any padding-block opens a window the truncated next line paints into. The
-   title's line-height carries the ink instead. Matches .message-text, the
-   file's other clamp. */
 .pinch-tile__title > span {
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.pinch-tile__meta {
+/* ============ CALENDAR REGION (month grid + up-next rail) ============ */
+.cal-region {
+  grid-column: 1 / 5;
+  grid-row: 3 / 7;
+  display: flex;
+  gap: var(--gap);
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ---- month grid (left, ~1.85×) ---- */
+.month {
+  flex: 1.85;
+  padding: 24px 24px 18px;
+  min-width: 0;
+}
+.m-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 13px;
+}
+.m-range {
   font-family: var(--ff-mono);
+  font-weight: 500;
   font-size: var(--t-eyebrow);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 13px;
+  justify-content: flex-end;
+  max-width: 280px;
+}
+.leg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--muted);
+}
+.leg .sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  column-gap: 8px;
+  padding: 0 4px 9px;
+}
+.weekdays span {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--faint);
+  padding-left: 3px;
+}
+
+/* The rolling week rows scroll vertically on the touchscreen. Scrollbars are
+   hidden (it's a touch wall; you scroll by finger) — hiding the bar never
+   disables scrolling. */
+.weeks {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox/standard */
+}
+.weeks::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.week {
+  /* CONTENT-SIZED week rows: each week is only as tall as its busiest day's
+     full-text event stack — light weeks stay compact (so more weeks are visible)
+     and busy weeks grow. `flex: 0 0 auto` means no grow AND no shrink, so the box
+     always equals its content height. The week is a vertical stack of three
+     bands: the day-number row, an optional multi-day bar band, and the per-day
+     single-chip stacks. Splitting singles into per-day stacks (not a shared
+     week-wide grid) is what fixes the old same-day gaps — each day column packs
+     its own events flush, so a short chip can't be stretched by a tall chip on a
+     neighbouring day. The per-day "+N more" cap (buildMonthLayout) keeps one
+     packed day from blowing a week up; overflow:hidden is a final no-spill
+     guard. */
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+  border-bottom: 1px solid var(--hair);
+  padding: 14px 0 14px;
+  overflow: hidden;
+  /* Floor so an empty/light week isn't too thin: the day-number strip + one
+     event chip wrapped to ~3 lines + padding. Weeks with more content still grow
+     past this (flex:0 0 auto). */
+  min-height: 185px;
+}
+.week:last-child {
+  border-bottom: none;
+}
+
+/* Band 1: the day-number row (7 columns). */
+.wk-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  column-gap: 8px;
+}
+
+/* Band 2: multi-day spanning bars. Bars span columns and stack into bar-band
+   rows (grid-row set inline) so overlapping multi-day events don't collide. */
+.wk-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: auto;
+  column-gap: 8px;
+  row-gap: 5px;
+}
+
+/* Band 3: per-day single-chip stacks. Each column holds an independent vertical
+   stack; a column's height no longer couples to its neighbours, so same-day
+   chips pack contiguously with no stray gaps. */
+.wk-stacks {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  column-gap: 8px;
+  align-items: start;
+}
+.day-stack {
+  display: flex;
+  flex-direction: column;
+  row-gap: 5px;
+  min-width: 0;
+}
+
+.dnum {
+  align-self: start;
+  justify-self: start;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 20px;
+  color: var(--ink);
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.dnum.past {
+  color: var(--faint);
+  opacity: 0.5;
+}
+.dnum.today {
+  background: var(--cornflower);
+  color: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 7px rgba(116, 167, 246, 0.5);
+}
+
+/* readable chips: time + FULL title (wraps as needed, never truncated). The
+   day's chip count is capped in buildMonthLayout with a "+N more" marker, so a
+   chip never needs clamping to fit its fixed-height week. */
+.chip {
+  align-self: start;
+  font-family: var(--ff-body);
+  font-weight: 500;
+  /* 18px (down from 19px): the smallest nudge that lets a single word like
+     "Birthday" fit on one line in the ~104px day column (title area ~75px;
+     "Birthday" is ~76px at 19px, ~72px at 18px). Still readable at kitchen
+     distance; longer titles still wrap. */
+  font-size: 18px;
+  line-height: 1.25;
+  padding: 7px 11px;
+  border-radius: 9px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* Inside a per-day stack, chips fill the column width (the grid-era align-self
+   "start" would otherwise shrink them to their text). The "+N more" marker
+   re-asserts its own left alignment below. */
+.day-stack .chip {
+  align-self: stretch;
+}
+.chip .t {
+  display: block;
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  margin-bottom: 2px;
+}
+.chip.bar {
+  display: block;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.chip.bar .t {
+  display: inline;
   margin: 0;
+}
+/* square off the inner edge of a bar that continues across a week boundary */
+.chip.bar.cont-l {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+.chip.bar.cont-r {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+/* overflow marker for a rarely-busy day (keeps every shown chip full-text) */
+.chip.more {
+  align-self: start;
+  background: transparent !important;
+  color: var(--muted);
+  font-family: var(--ff-mono);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 9px;
+  letter-spacing: 0.04em;
+}
+.chip.past {
+  opacity: 0.4;
+}
+.cat-cornflower {
+  background: rgba(116, 167, 246, 0.18);
+  color: var(--cornflower-ink);
+}
+.cat-apricot {
+  background: rgba(251, 164, 100, 0.22);
+  color: var(--apricot-ink);
+}
+.cat-seaglass {
+  background: rgba(165, 178, 167, 0.3);
+  color: var(--seaglass-ink);
+}
+.cat-clay {
+  background: rgba(192, 115, 85, 0.18);
+  color: var(--clay-ink);
+}
+.cat-lavender {
+  background: rgba(214, 163, 248, 0.26);
+  color: var(--lavender-ink);
+}
+
+/* ---- up-next rail (right, slim) ---- */
+.rail {
+  flex: 1;
+  padding: 22px 20px;
+  min-width: 0;
+}
+.r-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--hair);
+  margin-bottom: 2px;
+}
+.r-head .eyebrow {
+  color: var(--seaglass-ink);
+}
+.r-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* hidden — touch wall scrolls by finger */
+}
+.r-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.up {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  column-gap: 13px;
+  align-items: start;
+  padding: 14px 0 14px 14px;
+  border-bottom: 1px solid var(--hair);
+  position: relative;
+}
+.up:last-child {
+  border-bottom: none;
+}
+.up::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15px;
+  bottom: 15px;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--accent, var(--muted));
+}
+.up.is-today::before {
+  top: 12px;
+  bottom: 12px;
+  width: 5px;
+}
+.up .when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+}
+.up .d {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.up .tm {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.up.is-today .d {
+  color: var(--cornflower-ink);
+}
+.up .ttl {
+  font-family: var(--ff-body);
+  font-weight: 500;
+  font-size: var(--t-body);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.up .meta {
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 4px;
+}
+.acc-cornflower {
+  --accent: var(--cornflower-ink);
+}
+.acc-apricot {
+  --accent: var(--apricot-ink);
+}
+.acc-seaglass {
+  --accent: var(--seaglass-ink);
+}
+.acc-clay {
+  --accent: var(--clay-ink);
+}
+.acc-lavender {
+  --accent: var(--lavender-ink);
+}
+
+.r-empty,
+.error-state {
+  margin: 0;
+  padding-top: 18px;
+  color: var(--muted);
+  font-family: var(--ff-body);
+  font-weight: 300;
+  font-size: var(--t-body);
+}
+.error-state {
+  color: var(--clay-ink);
+}
+.r-stale {
+  margin: auto 0 0;
+  padding-top: 14px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
 }

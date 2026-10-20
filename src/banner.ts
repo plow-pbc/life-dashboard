@@ -16,6 +16,15 @@ export function stepIndex(i: number, count: number, dir: 1 | -1): number {
   return (((i + dir) % count) + count) % count;
 }
 
+// Label for the empty-banner placeholder: the full English date from `now`,
+// fully uppercased (e.g. "OCTOBER 17, 2026"). The household name is deliberately
+// NOT shown — nothing on the wall identifies the family. Pure so the dynamic
+// date formatting is unit-testable under the pinned TZ.
+export function placeholderLabel(now: Date = new Date()): string {
+  const date = now.toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return date.toUpperCase();
+}
+
 // Classify a pointer/touch gesture from its delta. swipe LEFT (dx < 0) → next (+1), swipe
 // RIGHT (dx > 0) → previous (-1); returns 0 (ignore) when the move is too small or mostly
 // vertical. Threshold ~45px keeps a tap or a vertical drag from changing the photo.
