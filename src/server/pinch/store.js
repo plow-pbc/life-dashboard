@@ -24,7 +24,13 @@ export class JsonStore {
 
   read() {
     const lib = readJson(this.filePath) ?? {};
-    return { recipes: Array.isArray(lib.recipes) ? lib.recipes : [] };
+    // Preserve the top-level `tonightRecipeId` (Pinch's meal-plan pick for tonight)
+    // alongside recipes — a non-string (absent/null) means "nothing planned".
+    // Per-recipe fields (incl. lastOpenedAt) pass through untouched in `recipes`.
+    return {
+      recipes: Array.isArray(lib.recipes) ? lib.recipes : [],
+      tonightRecipeId: typeof lib.tonightRecipeId === 'string' ? lib.tonightRecipeId : null,
+    };
   }
 }
 

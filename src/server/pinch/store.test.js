@@ -16,17 +16,24 @@ function storeWith(lib) {
 }
 
 describe('JsonStore', () => {
-  it('reads the recipe library', () => {
+  it('reads the recipe library (dropping unknown top-level keys, tonightRecipeId null)', () => {
     const s = storeWith({ recipes: [{ id: 'a', title: 'Soup' }], categories: [{ id: 'c' }] });
-    expect(s.read()).toEqual({ recipes: [{ id: 'a', title: 'Soup' }] });
+    expect(s.read()).toEqual({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: null });
+  });
+
+  it('preserves a top-level tonightRecipeId (Pinch meal-plan pick)', () => {
+    const s = storeWith({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: 'a' });
+    expect(s.read()).toEqual({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: 'a' });
   });
 
   it.each([
     ['an absent file', undefined],
     ['a non-array recipes field', { recipes: 'nope' }],
     ['an empty object', {}],
-  ])('reads empty on %s', (_label, lib) => {
-    expect(storeWith(lib).read()).toEqual({ recipes: [] });
+    ['a null tonightRecipeId', { recipes: [], tonightRecipeId: null }],
+    ['a non-string tonightRecipeId', { recipes: [], tonightRecipeId: 123 }],
+  ])('reads empty (recipes:[], tonightRecipeId:null) on %s', (_label, lib) => {
+    expect(storeWith(lib).read()).toEqual({ recipes: [], tonightRecipeId: null });
   });
 
   // REVIEW.md's operating point prefers a loud failure to a fallback: absence is

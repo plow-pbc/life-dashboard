@@ -3,16 +3,26 @@ export type Recipe = {
   title: string;
   photoUrl?: string | null;
   lastCookedAt?: string | null;
+  // When the recipe was last OPENED in Pinch (ISO-8601 UTC), from the wall-sync
+  // meal-plan data. Distinct from lastCookedAt; it is the fallback ranking signal
+  // when nothing is planned for tonight. Optional: an older snapshot may omit it.
+  lastOpenedAt?: string | null;
   // The Pinch sync writes a cookUrl per recipe (<backend>/cook/<id>) so the tile
   // can open that recipe's cooking mode on tap. Optional: an older snapshot (or
   // a Pinch-side gap) may omit it, in which case the tile just isn't tappable.
   cookUrl?: string | null;
 };
 
-// `tonightRecipeId` is the optional "Cook Tonight" pin: the id of the recipe a
-// user explicitly pinned as tonight's meal. The server surfaces it (merged from a
-// durable sibling pin file) only when it resolves to a recipe in `recipes`.
-export type Collection = { recipes: Recipe[]; tonightRecipeId?: string | null };
+// Two independent "tonight" signals, reconciled in pickTonight (pin wins):
+//   - tonightRecipeId: Pinch's MEAL-PLAN pick for tonight (top-level in
+//     collection.json, preserved by JsonStore, resolved against the household tz).
+//   - pinnedRecipeId: Hive's EXPLICIT pin (the server surfaces it from the durable
+//     tonight.json sibling). An explicit pin overrides the meal plan.
+export type Collection = {
+  recipes: Recipe[];
+  tonightRecipeId?: string | null;
+  pinnedRecipeId?: string | null;
+};
 
 // The sync stores Paprika's own photo URL verbatim when it is publicly
 // fetchable (resolvePhotoUrl in pinch-sync.mjs), so a recipe imported from the
@@ -65,37 +75,59 @@ export function cookRecipeId(url: string | null | undefined): string | null {
 // file and in every importer.
 export type TonightPick = { recipe: Recipe; meta: string };
 
-// The sync is the only writer of lastCookedAt and nothing in this repo enforces
-// its format, so require the shape and not just the type: comparison below is
-// lexical, and a value like 'yesterday' would sort above every real timestamp
-// and silently win.
+// Timestamps are only trusted when they are ISO-8601 shaped: the compare below is
+// lexical, so a value like 'yesterday' would sort above every real timestamp and
+// silently win. Same-shape UTC timestamps sort correctly as plain strings.
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
 
-// Which recipe the tile shows, and the caption explaining why:
-//
-//   0. an explicit pin (tonightRecipeId) → "Cook Tonight" — tonight's PLANNED meal
-//      wins over recency; guarded so a stale/non-matching id falls through.
-//   1. the most recently cooked          → "Recently cooked"
-//   2. else anything at all              → "From your library"
-export function pickTonight({ recipes, tonightRecipeId }: Collection): TonightPick | null {
-  if (recipes.length === 0) return null;
-
-  // A pinned recipe is tonight's intended meal, so it outranks every recency
-  // signal. The server already only sends a resolvable id, but re-check here so
-  // this pure pick is self-contained (and a stale id can never win nothing).
-  if (tonightRecipeId) {
-    const pinned = recipes.find((r) => r.id === tonightRecipeId);
-    if (pinned) return { recipe: pinned, meta: 'Cook Tonight' };
-  }
-
-  // Same-shape ISO-8601 timestamps sort lexically, so no Date parsing is needed
-  // to find the newest — and an unparseable value can't silently become epoch.
+// The recipe with the newest valid ISO timestamp in `field`, or undefined if none
+// has one. Lexical compare on same-shape timestamps; an unparseable value is
+// skipped rather than silently ranking (it can't become epoch).
+function newestBy(recipes: Recipe[], field: 'lastOpenedAt' | 'lastCookedAt'): Recipe | undefined {
   let newest: Recipe | undefined;
   for (const r of recipes) {
-    if (typeof r.lastCookedAt !== 'string' || !ISO_DATE.test(r.lastCookedAt)) continue;
-    if (!newest || r.lastCookedAt > (newest.lastCookedAt as string)) newest = r;
+    const v = r[field];
+    if (typeof v !== 'string' || !ISO_DATE.test(v)) continue;
+    if (!newest || v > (newest[field] as string)) newest = r;
   }
-  if (newest) return { recipe: newest, meta: 'Recently cooked' };
+  return newest;
+}
+
+// Which recipe the tile shows, and the caption explaining why. The precedence
+// reconciles the two "tonight" signals, then falls back through recency:
+//
+//   1. pinnedRecipeId     → "Cook Tonight" — Hive's EXPLICIT pin, the override.
+//   2. tonightRecipeId    → "Cook Tonight" — Pinch's MEAL-PLAN pick for tonight.
+//   3. newest lastOpenedAt → "Recently opened" — the spec's fallback.
+//   4. newest lastCookedAt → "Recently cooked" — tertiary, so the tile keeps a
+//      meaningful default while lastOpenedAt is still empty (not yet populated).
+//   5. else anything       → "From your library".
+//
+// Each id is re-validated against recipes[] so a stale/deleted id falls through
+// (fail-closed) rather than selecting nothing.
+export function pickTonight({
+  recipes,
+  tonightRecipeId,
+  pinnedRecipeId,
+}: Collection): TonightPick | null {
+  if (recipes.length === 0) return null;
+
+  // Explicit pin first, then the meal plan. Both present → the pin wins.
+  for (const id of [pinnedRecipeId, tonightRecipeId]) {
+    if (id) {
+      const planned = recipes.find((r) => r.id === id);
+      if (planned) return { recipe: planned, meta: 'Cook Tonight' };
+    }
+  }
+
+  // Recency fallbacks: prefer most-recently-opened; fall back to most-recently-
+  // cooked so an all-null lastOpenedAt (not yet populated) doesn't drop the tile
+  // to an arbitrary recipes[0].
+  const opened = newestBy(recipes, 'lastOpenedAt');
+  if (opened) return { recipe: opened, meta: 'Recently opened' };
+
+  const cooked = newestBy(recipes, 'lastCookedAt');
+  if (cooked) return { recipe: cooked, meta: 'Recently cooked' };
 
   return { recipe: recipes[0], meta: 'From your library' };
 }

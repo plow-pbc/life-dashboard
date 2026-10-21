@@ -55,20 +55,19 @@ function readPhotoContentType(photosDir, id) {
 }
 
 export function registerPinchRoutes(app, { store, photosDir, readPin }) {
-  // The collection the viewer serves is the library (collection.json) with the
-  // optional "Cook Tonight" pin merged in as a top-level `tonightRecipeId` — the
-  // client contract from the 2026-10-19 data-requirements spec. The pin lives in
-  // a SEPARATE sibling file (see readTonightPin) so it survives the hourly sync;
-  // the two sources are joined here at read time. The pin is only surfaced when it
-  // resolves to a recipe actually in the library, so a stale pin (to a deleted
-  // recipe) degrades to no pin. readPin is optional — absent → plain library.
+  // The collection the viewer serves carries TWO independent "tonight" signals,
+  // which the client (pickTonight) reconciles — the pin wins:
+  //   - `tonightRecipeId`: Pinch's MEAL-PLAN pick (top-level in collection.json,
+  //     preserved by store.read()); null when nothing is planned.
+  //   - `pinnedRecipeId`: Hive's EXPLICIT pin, read from the durable tonight.json
+  //     sibling (see readTonightPin — date-expiring, tolerant). Surfaced only when
+  //     non-null; omitted otherwise. readPin is optional — absent → no pin.
+  // Membership is NOT validated here; pickTonight re-checks each id against
+  // recipes[] and falls through on a stale one, so it stays the single authority.
   app.get('/api/pinch/collection', (c) => {
     const data = store.read();
-    const pinnedId = readPin ? readPin() : null;
-    if (pinnedId && data.recipes.some((r) => r.id === pinnedId)) {
-      return c.json({ ...data, tonightRecipeId: pinnedId });
-    }
-    return c.json(data);
+    const pinnedRecipeId = readPin ? readPin() : null;
+    return c.json(pinnedRecipeId ? { ...data, pinnedRecipeId } : data);
   });
 
   // Locally-cached photo bytes.

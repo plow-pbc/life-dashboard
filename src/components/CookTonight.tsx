@@ -76,7 +76,11 @@ export function CookTonight() {
         <div className="pinch-photo--placeholder" />
       )}
       <div className="pinch-tile__body">
-        <p className="pinch-tile__eyebrow">Cook Tonight</p>
+        {/* Eyebrow reflects WHY this recipe is shown (pickTonight.meta): "Cook
+            Tonight" for a pin/meal-plan pick, else the recency copy ("Recently
+            opened" / "Recently cooked" / "From your library") — so the tile never
+            labels a fallback as tonight's plan. */}
+        <p className="pinch-tile__eyebrow">{pick.meta}</p>
         <h2 className="pinch-tile__title">
           {/* Inner span carries the clamp: a flex item gets blockified, which
               makes -webkit-box inert. See index.css. */}
@@ -97,7 +101,7 @@ export function CookTonight() {
       <a
         className="pinch-tile pinch-tile--tappable"
         href={hashForMealsRecipe(recipeId)}
-        aria-label={`Cook Tonight: open ${pick.recipe.title} in Meals`}
+        aria-label={`${pick.meta}: open ${pick.recipe.title} in Meals`}
       >
         {inner}
       </a>
@@ -105,7 +109,7 @@ export function CookTonight() {
   }
 
   return (
-    <section className="pinch-tile" aria-label="Cook Tonight">
+    <section className="pinch-tile" aria-label={pick.meta}>
       {inner}
     </section>
   );
