@@ -7,7 +7,8 @@ import { registerPinchRoutes } from './routes.js';
 
 const RECIPES = [{ id: 'a', title: 'Soup' }];
 
-const fakeStore = () => ({ read: () => ({ recipes: RECIPES }) });
+// Mirrors JsonStore.read(): recipes + Pinch's meal-plan tonightRecipeId.
+const fakeStore = (tonightRecipeId = null) => ({ read: () => ({ recipes: RECIPES, tonightRecipeId }) });
 
 // `dirs` plants directory entries where a file is expected — the cheapest
 // portable way to provoke a non-ENOENT read failure (EISDIR).
@@ -24,25 +25,35 @@ function appWith({ photos = {}, dirs = [], store = fakeStore(), readPin } = {}) 
 const get = (app, path) => app.fetch(new Request(`http://localhost${path}`));
 
 describe('pinch routes', () => {
-  it('collection returns the library', async () => {
+  it('returns the library plus the meal-plan tonightRecipeId (null when unplanned)', async () => {
     const res = await get(appWith(), '/api/pinch/collection');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ recipes: RECIPES });
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null });
   });
 
-  it('merges tonightRecipeId when the pin resolves to a recipe in the library', async () => {
-    const res = await get(appWith({ readPin: () => 'a' }), '/api/pinch/collection');
-    expect(res.status).toBe(200);
+  it("passes Pinch's meal-plan tonightRecipeId through from the store", async () => {
+    const res = await get(appWith({ store: fakeStore('a') }), '/api/pinch/collection');
     expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: 'a' });
   });
 
+  it("surfaces Hive's explicit pin as a separate pinnedRecipeId", async () => {
+    const res = await get(appWith({ readPin: () => 'a' }), '/api/pinch/collection');
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null, pinnedRecipeId: 'a' });
+  });
+
+  // Membership is pickTonight's job, so the route surfaces the pin verbatim — even
+  // a stale id — rather than second-guessing it here.
+  it('surfaces the pin verbatim even if it is not in the library', async () => {
+    const res = await get(appWith({ readPin: () => 'zzz' }), '/api/pinch/collection');
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null, pinnedRecipeId: 'zzz' });
+  });
+
   it.each([
-    ['the pin does not match any recipe (stale/deleted)', () => 'zzz'],
     ['nothing is pinned', () => null],
     ['no pin source is wired at all', undefined],
-  ])('omits tonightRecipeId when %s', async (_label, readPin) => {
+  ])('omits pinnedRecipeId when %s', async (_label, readPin) => {
     const res = await get(appWith({ readPin }), '/api/pinch/collection');
-    expect(await res.json()).toEqual({ recipes: RECIPES });
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null });
   });
 
   it('serves photo bytes with the sidecar content-type', async () => {

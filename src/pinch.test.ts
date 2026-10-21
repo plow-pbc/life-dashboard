@@ -2,14 +2,18 @@ import { describe, it, expect } from 'vitest';
 import { cookRecipeId, isCookUrl, isLocalPhotoUrl, pickTonight, type Collection } from './pinch';
 
 const soup = { id: 'a', title: 'Soup' };
-const stew = { id: 'b', title: 'Stew', lastCookedAt: '2026-08-01T00:00:00Z' };
-const pie = { id: 'c', title: 'Pie', lastCookedAt: '2026-08-09T00:00:00Z' };
+const stew = { id: 'b', title: 'Stew', lastOpenedAt: '2026-08-01T00:00:00Z' };
+const pie = { id: 'c', title: 'Pie', lastOpenedAt: '2026-08-09T00:00:00Z' };
+// Cooked-but-never-opened recipes, for the tertiary lastCookedAt fallback.
+const roast = { id: 'roast', title: 'Roast', lastCookedAt: '2026-07-01T00:00:00Z' };
+const chili = { id: 'chili', title: 'Chili', lastCookedAt: '2026-07-20T00:00:00Z' };
 
 describe('pickTonight', () => {
+  // Fallback (nothing planned): newest lastOpenedAt, else anything.
   it.each([
-    ['the most recent cook', { recipes: [soup, stew, pie] }, 'Pie', 'Recently cooked'],
-    ['recency does not depend on array order', { recipes: [pie, stew] }, 'Pie', 'Recently cooked'],
-    ['anything at all when none was cooked', { recipes: [soup] }, 'Soup', 'From your library'],
+    ['the most recently opened', { recipes: [soup, stew, pie] }, 'Pie', 'Recently opened'],
+    ['order does not matter', { recipes: [pie, stew] }, 'Pie', 'Recently opened'],
+    ['anything at all when none was opened', { recipes: [soup] }, 'Soup', 'From your library'],
   ] as [string, Collection, string, string][])('picks %s', (_label, collection, title, meta) => {
     const pick = pickTonight(collection);
     expect(pick?.recipe.title).toBe(title);
@@ -21,39 +25,68 @@ describe('pickTonight', () => {
   });
 
   // Comparison is lexical, so a value that is not a real timestamp would sort
-  // above every real one and silently win the "Recently cooked" slot.
+  // above every real one and silently win the "Recently opened" slot.
   it.each([
     ['null', null],
     ['a non-timestamp string', 'yesterday'],
     ['an empty string', ''],
-  ])('ignores %s in lastCookedAt rather than ranking on it', (_label, lastCookedAt) => {
-    const bad = { id: 'd', title: 'Bad', lastCookedAt };
+  ])('ignores %s in lastOpenedAt rather than ranking on it', (_label, lastOpenedAt) => {
+    const bad = { id: 'd', title: 'Bad', lastOpenedAt };
     expect(pickTonight({ recipes: [bad] })?.meta).toBe('From your library');
   });
 
   it('does not let a malformed value outrank a real timestamp', () => {
-    const junk = { id: 'e', title: 'Junk', lastCookedAt: 'yesterday' };
+    const junk = { id: 'e', title: 'Junk', lastOpenedAt: 'yesterday' };
     expect(pickTonight({ recipes: [junk, pie] })?.recipe.title).toBe('Pie');
   });
 
-  // The "Cook Tonight" pin (tonightRecipeId) is tonight's PLANNED meal, so it wins
-  // over recency — even when the pinned recipe has never been cooked (the exact
-  // real case: the pinned Kale salad has lastCookedAt: null, so recency alone would
-  // never surface it).
-  it('shows the pinned recipe as Cook Tonight, outranking the most-recent cook', () => {
+  // Precedence: Hive pin (pinnedRecipeId) > Pinch plan (tonightRecipeId) > fallback.
+  it('shows Pinch meal-plan (tonightRecipeId) as Cook Tonight, over the fallback', () => {
     const pick = pickTonight({ recipes: [soup, stew, pie], tonightRecipeId: 'a' });
-    expect(pick?.recipe.title).toBe('Soup');
+    expect(pick?.recipe.title).toBe('Soup'); // not the most-recently-opened Pie
+    expect(pick?.meta).toBe('Cook Tonight');
+  });
+
+  it("Hive's explicit pin overrides both the meal plan and the fallback", () => {
+    const pick = pickTonight({ recipes: [soup, stew, pie], tonightRecipeId: 'b', pinnedRecipeId: 'a' });
+    expect(pick?.recipe.title).toBe('Soup'); // pin 'a' beats plan 'b' and recency
+    expect(pick?.meta).toBe('Cook Tonight');
+  });
+
+  it('falls through a stale pin to the meal plan', () => {
+    const pick = pickTonight({ recipes: [stew, pie], tonightRecipeId: 'b', pinnedRecipeId: 'zzz' });
+    expect(pick?.recipe.title).toBe('Stew'); // stale pin ignored, plan 'b' wins
     expect(pick?.meta).toBe('Cook Tonight');
   });
 
   it.each([
-    ['a non-matching pin (stale/deleted recipe)', 'zzz'],
-    ['a null pin', null],
-    ['an absent pin', undefined],
-  ])('falls back to current behavior on %s', (_label, tonightRecipeId) => {
+    ['a non-matching plan (stale/deleted)', 'zzz'],
+    ['a null plan', null],
+    ['an absent plan', undefined],
+  ])('falls back to newest-opened on %s', (_label, tonightRecipeId) => {
     const pick = pickTonight({ recipes: [stew, pie], tonightRecipeId });
-    expect(pick?.recipe.title).toBe('Pie'); // newest lastCookedAt
+    expect(pick?.recipe.title).toBe('Pie'); // newest lastOpenedAt
+    expect(pick?.meta).toBe('Recently opened');
+  });
+
+  // Tertiary: when lastOpenedAt is unpopulated (the current live state), keep the
+  // meaningful recently-cooked default instead of dropping to an arbitrary recipes[0].
+  it('falls back to newest lastCookedAt when no lastOpenedAt is populated', () => {
+    const pick = pickTonight({ recipes: [soup, roast, chili] });
+    expect(pick?.recipe.title).toBe('Chili'); // newest lastCookedAt
     expect(pick?.meta).toBe('Recently cooked');
+  });
+
+  it('prefers lastOpenedAt over lastCookedAt when both are present', () => {
+    const pick = pickTonight({ recipes: [chili, pie] }); // pie opened, chili cooked
+    expect(pick?.recipe.title).toBe('Pie');
+    expect(pick?.meta).toBe('Recently opened');
+  });
+
+  it('falls back to the first recipe only when no timestamp is present at all', () => {
+    const pick = pickTonight({ recipes: [soup, { id: 'z', title: 'Zuppa' }] });
+    expect(pick?.recipe.title).toBe('Soup');
+    expect(pick?.meta).toBe('From your library');
   });
 });
 
