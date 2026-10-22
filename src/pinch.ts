@@ -39,6 +39,16 @@ export function isLocalPhotoUrl(url: string | null | undefined): url is string {
   return typeof url === 'string' && LOCAL_PHOTO.test(url);
 }
 
+// The Pinch embed iframe src. The BASE library URL, or — when `recipe` is given — a
+// one-time recipe deep-link (Pinch opens that recipe's detail inside the embed session,
+// then strips the param so its own reloads stay clean). The token is already
+// percent-encoded by the server, so it is appended verbatim; the recipe id is encoded
+// (Pinch matches it case-insensitively, so the UPPERCASE collection id works).
+export function embedSrc(origin: string, token: string, recipe?: string | null): string {
+  const base = `${origin}/embed?token=${token}`;
+  return recipe ? `${base}&recipe=${encodeURIComponent(recipe)}` : base;
+}
+
 // NOT named Pick — that would shadow TypeScript's built-in Pick<T, K> in this
 // file and in every importer.
 export type TonightPick = { recipe: Recipe; meta: string };

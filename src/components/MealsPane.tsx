@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { embedSrc } from '../pinch';
 
 // The Meals pane: the owner's CONFIGURED Pinch recipe app, embedded in an iframe
 // filling the pane above the nav. The base URL is not hardcoded — it comes from the
@@ -12,19 +13,39 @@ import { useEffect, useState } from 'react';
 // — which Pinch reads server-side as a Bearer (no cookie). The server percent-encodes the
 // token before serving it, so it is interpolated verbatim here (no re-encoding).
 //
-// The src is ALWAYS the BASE embed URL — never a /cook/<id> or /recipe/<id> deep-link.
-// Pinch itself restores the user's last position inside the embed, so the wall must NOT
-// drive where the embed lands: the persistent iframe and the ~5-min kiosk reload both
-// load the base URL, and Pinch takes it from there. (This is why the pane takes no
-// recipe id — the Cook Tonight tile is a separate navigation, not an embed deep-link.)
+// PERSISTENT src = BASE embed URL. The ~5-min kiosk reload remounts this pane, so the
+// reload always loads the base URL and Pinch restores the user's last position — the
+// wall must never BAKE a recipe into the persistent src (it would yank the user back on
+// every reload). `openRecipe` is a ONE-TIME request (from a Cook Tonight tap): it is
+// frozen at mount into a one-shot &recipe= deep-link, then cleared in the parent via
+// onConsumed so a later remount/reload is base again. The id is never in the URL/hash,
+// so a reload is base by construction. Pinch also strips the param after landing, so
+// its OWN in-embed reloads stay clean.
+//
+// allow="autoplay": lets the embed sound a timer chime without a user gesture (paired
+// with the kiosk --autoplay-policy=no-user-gesture-required flag).
 //
 // Unconfigured — missing EITHER the origin or the token — → this pane shows a short
 // placeholder instead (an origin with no token would only ever render the login gate).
 
 type Config = { loaded: boolean; origin: string | null; token: string | null };
 
-export function MealsPane() {
+export function MealsPane({
+  openRecipe,
+  onConsumed,
+}: {
+  openRecipe: string | null;
+  onConsumed: () => void;
+}) {
   const [cfg, setCfg] = useState<Config>({ loaded: false, origin: null, token: null });
+  // Freeze the requested recipe at mount: it drives the one-shot deep-link only, so a
+  // later openRecipe change (incl. the parent clearing it) never reloads the iframe.
+  const [recipeOnce] = useState(openRecipe);
+
+  // Clear the one-shot in the parent so the next remount (tab switch) or reload is base.
+  useEffect(() => {
+    if (recipeOnce) onConsumed();
+  }, [recipeOnce, onConsumed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,14 +97,19 @@ export function MealsPane() {
     );
   }
 
-  // Always the base embed URL. The token (already percent-encoded by the server)
-  // authenticates it so Pinch renders the library rather than its login gate; Pinch
-  // restores the user's last position within the embed on its own.
-  const src = `${cfg.origin}/embed?token=${cfg.token}`;
+  // Base embed URL, or a one-time recipe deep-link when this mount was a Cook Tonight
+  // tap (recipeOnce). The token (already percent-encoded by the server) authenticates
+  // it so Pinch renders the app rather than its login gate.
+  const src = embedSrc(cfg.origin, cfg.token, recipeOnce);
 
   return (
     <div className="meals-pane">
-      <iframe className="meals-frame" src={src} title="Meals — your Pinch recipes" />
+      <iframe
+        className="meals-frame"
+        src={src}
+        title="Meals — your Pinch recipes"
+        allow="autoplay"
+      />
     </div>
   );
 }

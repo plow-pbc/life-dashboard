@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLocalPhotoUrl, pickTonight, type Collection } from './pinch';
+import { embedSrc, isLocalPhotoUrl, pickTonight, type Collection } from './pinch';
 
 const soup = { id: 'a', title: 'Soup' };
 const stew = { id: 'b', title: 'Stew', lastOpenedAt: '2026-08-01T00:00:00Z' };
@@ -106,5 +106,28 @@ describe('isLocalPhotoUrl', () => {
     ['null', null, false],
   ])('%s', (_label, url, expected) => {
     expect(isLocalPhotoUrl(url)).toBe(expected);
+  });
+});
+
+describe('embedSrc', () => {
+  const O = 'https://pinch.example.com';
+  const T = 'ro%2Dtok'; // already percent-encoded by the server; appended verbatim
+
+  it('is the base library URL with no recipe', () => {
+    expect(embedSrc(O, T)).toBe('https://pinch.example.com/embed?token=ro%2Dtok');
+    expect(embedSrc(O, T, null)).toBe('https://pinch.example.com/embed?token=ro%2Dtok');
+    expect(embedSrc(O, T, '')).toBe('https://pinch.example.com/embed?token=ro%2Dtok');
+  });
+
+  it('appends a one-time &recipe= deep-link when a recipe id is given', () => {
+    expect(embedSrc(O, T, '0A1B2C3D-4E5F-6789-ABCD-EF0123456789')).toBe(
+      'https://pinch.example.com/embed?token=ro%2Dtok&recipe=0A1B2C3D-4E5F-6789-ABCD-EF0123456789',
+    );
+  });
+
+  it('url-encodes the recipe id (any unsafe char) without touching the token', () => {
+    expect(embedSrc(O, T, 'a b/c')).toBe(
+      'https://pinch.example.com/embed?token=ro%2Dtok&recipe=a%20b%2Fc',
+    );
   });
 });
