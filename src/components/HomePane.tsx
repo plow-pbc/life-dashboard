@@ -14,12 +14,21 @@ type Props = {
   upNext: UpNextItem[];
   staleGeneratedAt: Date | null;
   isError: boolean;
+  // Open a recipe in the Meals embed (a Cook Tonight tap). Threaded to CookTonight.
+  onOpenRecipe: (recipeId: string) => void;
 };
 
 // The Home pane: the original dashboard grid of tiles, lifted verbatim out of App
 // so the shell can swap it with the other panes. Visually unchanged — it still
 // fills its box (now the viewport minus the bottom nav) via the .app grid.
-export function HomePane({ affirmation, month, upNext, staleGeneratedAt, isError }: Props) {
+export function HomePane({
+  affirmation,
+  month,
+  upNext,
+  staleGeneratedAt,
+  isError,
+  onOpenRecipe,
+}: Props) {
   return (
     <div className="app">
       {/* Top-left 2×1 photo */}
@@ -42,7 +51,7 @@ export function HomePane({ affirmation, month, upNext, staleGeneratedAt, isError
 
       {/* Row 2 right: cook tonight (clay, mockup's most-urgent slot) */}
       <section className="card c-clay cell-cook">
-        <CookTonight />
+        <CookTonight onOpenRecipe={onOpenRecipe} />
       </section>
 
       {/* Bottom: rolling 3-week calendar + up-next rail */}

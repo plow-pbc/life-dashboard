@@ -3,12 +3,14 @@ import { isLocalPhotoUrl, pickTonight, type Collection, type TonightPick } from 
 import { hashForTab } from '../nav';
 
 // The "Cook Tonight" tile: one recipe from the synced Pinch library, with its photo.
-// Tapping it switches to the MEALS TAB — the base Pinch embed, which restores the
-// user's last position — staying in the shell (the nav stays, tap Home to return).
-// The tile does NOT deep-link a specific recipe: the embed src is always the base
-// URL (Pinch drives position), and a recipe DETAIL page (/recipe/<id>) can't be
-// opened on the wall — it needs a Pinch login session the embed token doesn't grant.
-// So the tap opens Pinch (Meals) and the user picks tonight's recipe there.
+// Tapping it switches to the MEALS TAB and opens THIS recipe's detail inside the Pinch
+// embed, one time — staying in the shell (the nav stays, tap Home to return); the user
+// taps Cook in Pinch to start. onOpenRecipe stashes the recipe id as an in-memory
+// one-shot (App), so the deep-link never enters the URL: the next ~5-min kiosk reload
+// lands on the base embed (Change 1 preserved). The href="#meals" is the semantic/
+// fallback nav; onOpenRecipe both records the recipe and drives the tab switch.
+// Pinch matches the id case-insensitively, so the UPPERCASE collection id works —
+// no need to call /plan/today.
 //
 // This slot is a CONFIGURABLE WIDGET slot. When no recipe is configured it shows
 // a designed invite placeholder (see WidgetSlotPlaceholder below), in the spirit
@@ -25,7 +27,7 @@ import { hashForTab } from '../nav';
 // is unconfigured, /api/pinch/* is never mounted, and server.js's SPA catch-all
 // answers the path with 200 text/html rather than a 404 — so res.json() is what
 // actually rejects, and the catch below is the real disabled path.
-export function CookTonight() {
+export function CookTonight({ onOpenRecipe }: { onOpenRecipe: (recipeId: string) => void }) {
   const [pick, setPick] = useState<TonightPick | null>(null);
   // `settled` flips true once the fetch attempt completes (configured or not), so
   // the invite placeholder only appears after we've CONFIRMED the slot is empty —
@@ -89,14 +91,14 @@ export function CookTonight() {
     </>
   );
 
-  // Always tappable: the anchor targets the Meals tab hash (#meals), switching to the
-  // base Pinch embed — no top-level navigation, the nav stays visible. No recipe field
-  // is needed, so the tile never degrades to non-tappable the way the old cookUrl
-  // deep-link could.
+  // Always tappable. onOpenRecipe records this recipe's id as the Meals one-shot AND
+  // the href="#meals" switches the tab — the Meals pane then opens the recipe once.
+  // The id is in memory only (never the URL), so the next reload lands on the base embed.
   return (
     <a
       className="pinch-tile pinch-tile--tappable"
       href={hashForTab('meals')}
+      onClick={() => onOpenRecipe(pick.recipe.id)}
       aria-label={`${pick.meta}: open ${pick.recipe.title} in Meals`}
     >
       {inner}

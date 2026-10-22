@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { loadCalendarEvents, type CalendarResult } from './calendar';
 import { buildMonthLayout, buildUpNext } from './calendarLayout';
 import { BottomNav } from './components/BottomNav';
@@ -39,6 +39,12 @@ export function App() {
   // The URL hash is the single routing source of truth: it carries the active tab.
   // A bare URL (the Pi's hourly recycle) → Home; a reload keeps the hash → stays put.
   const [hash, setHash] = useState<string>(() => location.hash);
+  // A ONE-SHOT request to open a recipe in the Meals embed, set by a Cook Tonight tap.
+  // In-memory on purpose: it is never written to the URL/hash, so a reload (which keeps
+  // the hash) can never re-open the recipe — the reload lands on the base embed. The
+  // Meals pane consumes it on mount and clears it via clearMealsRecipe.
+  const [mealsRecipe, setMealsRecipe] = useState<string | null>(null);
+  const clearMealsRecipe = useCallback(() => setMealsRecipe(null), []);
 
   useEffect(() => {
     const onHashChange = () => setHash(location.hash);
@@ -93,6 +99,7 @@ export function App() {
             upNext={upNext}
             staleGeneratedAt={staleGeneratedAt}
             isError={isError}
+            onOpenRecipe={setMealsRecipe}
           />
         )}
         {tab === 'calendar' && (
@@ -103,7 +110,7 @@ export function App() {
             isError={isError}
           />
         )}
-        {tab === 'meals' && <MealsPane />}
+        {tab === 'meals' && <MealsPane openRecipe={mealsRecipe} onConsumed={clearMealsRecipe} />}
       </main>
       <BottomNav tab={tab} />
     </div>

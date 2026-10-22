@@ -10,7 +10,11 @@ Type=simple
 ExecStartPre=/bin/sleep 5
 ExecStartPre=/bin/rm -f %h/.config/chromium/Singleton*
 # --touch-events=enabled: required for touchscreen scrolling on the Pi kiosk display.
-ExecStart=/usr/bin/chromium --kiosk --touch-events=enabled --noerrdialogs --disable-infobars --no-first-run --password-store=basic --check-for-update-interval=31536000 http://127.0.0.1:5174
+# --autoplay-policy=no-user-gesture-required: lets the embedded Pinch app sound a timer
+# chime hands-free on the passive kiosk (no click to unlock audio). Pairs with the
+# iframe allow="autoplay" in MealsPane. (Some builds still want one gesture; this is the
+# hands-free path.)
+ExecStart=/usr/bin/chromium --kiosk --touch-events=enabled --autoplay-policy=no-user-gesture-required --noerrdialogs --disable-infobars --no-first-run --password-store=basic --check-for-update-interval=31536000 http://127.0.0.1:5174
 Restart=always
 RestartSec=10
 # Hourly chromium recycle so any manual navigation away from the kiosk URL
