@@ -5,7 +5,7 @@ import { BottomNav } from './components/BottomNav';
 import { HomePane } from './components/HomePane';
 import { CalendarPane } from './components/CalendarPane';
 import { MealsPane } from './components/MealsPane';
-import { mealsRecipeFromHash, tabFromHash, type Tab } from './nav';
+import { tabFromHash, type Tab } from './nav';
 import type { Message as MessageType } from './message';
 
 const NEXT_N = Number(__NEXT_N__);
@@ -36,11 +36,8 @@ type State = { kind: 'loading' } | CalendarResult;
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [affirmation, setAffirmation] = useState<MessageType | null>(null);
-  // The full URL hash is the single routing source of truth: it carries both the
-  // active tab AND the Meals deep-link recipe (#meals/cook/<id>). Storing the raw
-  // hash (not just the derived tab) means a #meals → #meals/cook/<id> change — same
-  // tab, different recipe — still re-renders. A bare URL (the Pi's hourly recycle)
-  // → Home; a reload keeps the hash → stays put.
+  // The URL hash is the single routing source of truth: it carries the active tab.
+  // A bare URL (the Pi's hourly recycle) → Home; a reload keeps the hash → stays put.
   const [hash, setHash] = useState<string>(() => location.hash);
 
   useEffect(() => {
@@ -50,7 +47,6 @@ export function App() {
   }, []);
 
   const tab: Tab = tabFromHash(hash);
-  const mealsRecipe = mealsRecipeFromHash(hash);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +103,7 @@ export function App() {
             isError={isError}
           />
         )}
-        {tab === 'meals' && <MealsPane recipeId={mealsRecipe} />}
+        {tab === 'meals' && <MealsPane />}
       </main>
       <BottomNav tab={tab} />
     </div>

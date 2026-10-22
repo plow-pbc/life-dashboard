@@ -7,9 +7,10 @@ export type Recipe = {
   // meal-plan data. Distinct from lastCookedAt; it is the fallback ranking signal
   // when nothing is planned for tonight. Optional: an older snapshot may omit it.
   lastOpenedAt?: string | null;
-  // The Pinch sync writes a cookUrl per recipe (<backend>/cook/<id>) so the tile
-  // can open that recipe's cooking mode on tap. Optional: an older snapshot (or
-  // a Pinch-side gap) may omit it, in which case the tile just isn't tappable.
+  // DEPRECATED: the sync still writes a cookUrl per recipe, but the viewer no longer
+  // uses it (the Cook Tonight tap opens the Meals tab, not a recipe deep-link). Kept
+  // on the type only so a snapshot carrying it still types; it will go when the sync
+  // drops it. (Pinch has aliased cookUrl to /recipe and plans to remove it.)
   cookUrl?: string | null;
 };
 
@@ -36,39 +37,6 @@ const LOCAL_PHOTO = /^\/api\/pinch\/photos\/[A-Za-z0-9_-]{1,128}$/;
 // and there is no second null-check at the use site.
 export function isLocalPhotoUrl(url: string | null | undefined): url is string {
   return typeof url === 'string' && LOCAL_PHOTO.test(url);
-}
-
-// A tappable cookUrl must be an absolute http(s) URL — the tile navigates the
-// top-level document to it, so a `javascript:`/`data:` scheme or a relative
-// value is rejected (the tile falls back to not-tappable). Scheme-only, not
-// host/path pinned, so the Pinch backend can move (preview → prod) without a
-// viewer change. A type predicate so the href narrows to string at the use site.
-export function isCookUrl(url: string | null | undefined): url is string {
-  if (typeof url !== 'string') return false;
-  try {
-    const { protocol } = new URL(url);
-    return protocol === 'https:' || protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
-
-// The Pinch cook-route id from a recipe's cookUrl ("<backend>/cook/<id>"). The
-// tile deep-links the Meals tab to this id, which the Meals pane joins to the
-// CONFIGURED Pinch origin (PINCH_BACKEND_URL) — NOT the cookUrl's own host, which
-// may differ from the configured origin and would be blocked by the CSP frame-src.
-// So we take only the opaque id (safe path-segment charset), never the host.
-const COOK_PATH_RE = /^\/cook\/([A-Za-z0-9_-]+)\/?$/;
-
-/** The "/cook/<id>" recipe id from a cookUrl, or null if it isn't that shape. */
-export function cookRecipeId(url: string | null | undefined): string | null {
-  if (!isCookUrl(url)) return null;
-  try {
-    const m = COOK_PATH_RE.exec(new URL(url).pathname);
-    return m ? m[1] : null;
-  } catch {
-    return null;
-  }
 }
 
 // NOT named Pick — that would shadow TypeScript's built-in Pick<T, K> in this

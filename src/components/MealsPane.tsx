@@ -12,20 +12,18 @@ import { useEffect, useState } from 'react';
 // — which Pinch reads server-side as a Bearer (no cookie). The server percent-encodes the
 // token before serving it, so it is interpolated verbatim here (no re-encoding).
 //
-// A `recipeId` (from a `#meals/cook/<id>` deep-link, e.g. the Cook Tonight tile)
-// deep-links to that recipe, carrying the same token: src = <origin>/cook/<id>?token=<token>.
-// CRITICAL: the origin is ALWAYS the configured one, never the snapshot cookUrl's
-// host — the cookUrl host may differ from PINCH_BACKEND_URL, and a cross-origin
-// src would be blocked by the CSP frame-src. The id is already validated to a safe
-// path-segment charset (nav.mealsRecipeFromHash / pinch.cookRecipeId). No recipeId
-// → the Pinch library embed (a direct Meals nav tap).
+// The src is ALWAYS the BASE embed URL — never a /cook/<id> or /recipe/<id> deep-link.
+// Pinch itself restores the user's last position inside the embed, so the wall must NOT
+// drive where the embed lands: the persistent iframe and the ~5-min kiosk reload both
+// load the base URL, and Pinch takes it from there. (This is why the pane takes no
+// recipe id — the Cook Tonight tile is a separate navigation, not an embed deep-link.)
 //
 // Unconfigured — missing EITHER the origin or the token — → this pane shows a short
 // placeholder instead (an origin with no token would only ever render the login gate).
 
 type Config = { loaded: boolean; origin: string | null; token: string | null };
 
-export function MealsPane({ recipeId }: { recipeId: string | null }) {
+export function MealsPane() {
   const [cfg, setCfg] = useState<Config>({ loaded: false, origin: null, token: null });
 
   useEffect(() => {
@@ -78,12 +76,10 @@ export function MealsPane({ recipeId }: { recipeId: string | null }) {
     );
   }
 
-  // Deep-link to a recipe on the CONFIGURED origin (never the cookUrl host), else
-  // the Pinch library embed. The token (already percent-encoded by the server)
-  // authenticates both so Pinch renders the app rather than its login gate.
-  const src = recipeId
-    ? `${cfg.origin}/cook/${recipeId}?token=${cfg.token}`
-    : `${cfg.origin}/embed?token=${cfg.token}`;
+  // Always the base embed URL. The token (already percent-encoded by the server)
+  // authenticates it so Pinch renders the library rather than its login gate; Pinch
+  // restores the user's last position within the embed on its own.
+  const src = `${cfg.origin}/embed?token=${cfg.token}`;
 
   return (
     <div className="meals-pane">

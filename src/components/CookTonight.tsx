@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
-import { cookRecipeId, isLocalPhotoUrl, pickTonight, type Collection, type TonightPick } from '../pinch';
-import { hashForMealsRecipe } from '../nav';
+import { isLocalPhotoUrl, pickTonight, type Collection, type TonightPick } from '../pinch';
+import { hashForTab } from '../nav';
 
-// The "Cook Tonight" tile: one recipe from the synced Paprika library, with its
-// photo. Tapping it opens that recipe IN THE MEALS TAB — the tile is an anchor to
-// the `#meals/cook/<id>` hash, so it switches to the embedded Pinch (staying in the
-// shell: the nav stays, tap Home to return) and deep-links it to this recipe. The
-// id is parsed from the recipe's cookUrl; the Meals pane joins it to the CONFIGURED
-// Pinch origin (never the cookUrl host → always within the CSP frame-src). When the
-// recipe carries no (valid) cookUrl the tile still renders, just not tappable —
-// never an error.
+// The "Cook Tonight" tile: one recipe from the synced Pinch library, with its photo.
+// Tapping it switches to the MEALS TAB — the base Pinch embed, which restores the
+// user's last position — staying in the shell (the nav stays, tap Home to return).
+// The tile does NOT deep-link a specific recipe: the embed src is always the base
+// URL (Pinch drives position), and a recipe DETAIL page (/recipe/<id>) can't be
+// opened on the wall — it needs a Pinch login session the embed token doesn't grant.
+// So the tap opens Pinch (Meals) and the user picks tonight's recipe there.
 //
 // This slot is a CONFIGURABLE WIDGET slot. When no recipe is configured it shows
 // a designed invite placeholder (see WidgetSlotPlaceholder below), in the spirit
@@ -90,28 +89,18 @@ export function CookTonight() {
     </>
   );
 
-  // Tappable when the recipe carries a parseable cookUrl: the anchor targets the
-  // Meals deep-link hash (#meals/cook/<id>), which switches to the Meals tab and
-  // opens this recipe in the embedded Pinch — no top-level navigation, the nav
-  // stays visible. No/unparseable cookUrl → a plain section, identical look, just
-  // not tappable (graceful, never an error).
-  const recipeId = cookRecipeId(pick.recipe.cookUrl);
-  if (recipeId) {
-    return (
-      <a
-        className="pinch-tile pinch-tile--tappable"
-        href={hashForMealsRecipe(recipeId)}
-        aria-label={`${pick.meta}: open ${pick.recipe.title} in Meals`}
-      >
-        {inner}
-      </a>
-    );
-  }
-
+  // Always tappable: the anchor targets the Meals tab hash (#meals), switching to the
+  // base Pinch embed — no top-level navigation, the nav stays visible. No recipe field
+  // is needed, so the tile never degrades to non-tappable the way the old cookUrl
+  // deep-link could.
   return (
-    <section className="pinch-tile" aria-label={pick.meta}>
+    <a
+      className="pinch-tile pinch-tile--tappable"
+      href={hashForTab('meals')}
+      aria-label={`${pick.meta}: open ${pick.recipe.title} in Meals`}
+    >
       {inner}
-    </section>
+    </a>
   );
 }
 
