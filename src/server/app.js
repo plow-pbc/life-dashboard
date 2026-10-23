@@ -6,6 +6,7 @@ import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { registerPinchRoutes } from './pinch/routes.js';
+import { readAffirmation } from './affirmation.js';
 import { isCalendarFeed } from './calendar.js';
 import { normalizePinchBackendUrl } from './pinchUrl.js';
 
@@ -84,6 +85,11 @@ export function createApp({
   // its empty state, exactly like the recipe tile.
   weatherStore = null,
   sportsStore = null,
+  // Absolute path to the agent-dropped affirmation file (~/ld-data/affirmation.json
+  // by default, set in server.js). The agent writes it over the wall SSH path like
+  // the Cook Tonight pin; /api/affirmation reads it live. null → the route never
+  // mounts and the SPA catch-all answers, exactly like the recipe tile.
+  affirmationFile = null,
   // The household's display name for the empty-banner placeholder. Read at
   // runtime (server.js wires it from process.env.FAMILY_NAME) and served by
   // GET /api/config, so a `.env` change + viewer restart updates the label with
@@ -285,6 +291,15 @@ export function createApp({
       return data ? c.json(data) : c.text('weather unavailable', 503);
     });
   }
+  // /api/affirmation: the one card the agent still composes. It is NOT a pushed
+  // card anymore — the agent drops ~/ld-data/affirmation.json over the wall SSH
+  // path (like the Cook Tonight pin) and this reads it LIVE per request, the same
+  // shape the message store used to serve. Absent/empty/malformed file → null, so
+  // the tile shows its quiet invitation. (POST /api/message stays for now.)
+  if (affirmationFile) {
+    app.get('/api/affirmation', (c) => c.json({ message: readAffirmation(affirmationFile) }));
+  }
+
   if (sportsStore) {
     app.get('/api/sports', (c) => {
       const games = sportsStore.get();

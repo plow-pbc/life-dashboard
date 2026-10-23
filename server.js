@@ -1,5 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './src/server/app.js';
@@ -130,6 +131,13 @@ if (process.env.SPORTS_TEAMS) {
 const SPORTS_LOGOS_DIR = process.env.SPORTS_LOGOS_DIR ?? './data/sports-logos';
 const sportsStore = createSportsFetcher({ teams: sportsTeams, logosDir: SPORTS_LOGOS_DIR });
 
+// The affirmation is no longer a pushed card: the agent drops this file on the
+// Pi over its wall SSH connection (the same file-drop the Cook Tonight pin uses),
+// and /api/affirmation reads it live. Default to ~/ld-data/affirmation.json — the
+// household state dir the agent writes to — so it needs no onboarding; override
+// with AFFIRMATION_FILE if the file lives elsewhere.
+const AFFIRMATION_FILE = process.env.AFFIRMATION_FILE ?? join(homedir(), 'ld-data', 'affirmation.json');
+
 const app = createApp({
   fetchUpstream: async () => {
     if (!ICAL_URL) throw new Error('ICAL_URL unset');
@@ -164,6 +172,7 @@ const app = createApp({
   calendarStore,
   weatherStore,
   sportsStore,
+  affirmationFile: AFFIRMATION_FILE,
   // Runtime FAMILY_NAME for the banner placeholder, served via GET /api/config.
   // A `.env` change + `systemctl --user restart life-dashboard-viewer` applies
   // it with no client rebuild (unlike the build-time Vite defines). Loopback-only.

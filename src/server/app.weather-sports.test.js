@@ -128,3 +128,43 @@ describe('GET /api/sports/logo/:id', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('GET /api/affirmation', () => {
+  async function affirmFile(contents) {
+    const dir = await mkdtemp(join(tmpdir(), 'app-affirm-'));
+    const path = join(dir, 'affirmation.json');
+    if (contents !== undefined) await writeFile(path, contents);
+    return path;
+  }
+
+  it('serves the file live as { message } (card-2 affirmation shape)', async () => {
+    const affirmationFile = await affirmFile(JSON.stringify({ text: 'A soft week.', date: 'Oct 22' }));
+    const res = await appWith({ affirmationFile }).fetch(new Request('http://localhost/api/affirmation'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      message: { card: '2', type: 'affirmation', text: 'A soft week.', date: 'Oct 22' },
+    });
+  });
+
+  it('serves { message: null } when no line has been delivered yet (absent file)', async () => {
+    const affirmationFile = await affirmFile(undefined);
+    const res = await appWith({ affirmationFile }).fetch(new Request('http://localhost/api/affirmation'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ message: null });
+  });
+
+  it('is read LIVE per request (a fresh drop shows without a restart)', async () => {
+    const affirmationFile = await affirmFile(JSON.stringify({ text: 'first', date: 'Oct 22' }));
+    const app = appWith({ affirmationFile });
+    const first = await (await app.fetch(new Request('http://localhost/api/affirmation'))).json();
+    expect(first.message.text).toBe('first');
+    await writeFile(affirmationFile, JSON.stringify({ text: 'second', date: 'Oct 23' }));
+    const second = await (await app.fetch(new Request('http://localhost/api/affirmation'))).json();
+    expect(second.message.text).toBe('second');
+  });
+
+  it('is not mounted when unconfigured (no affirmationFile)', async () => {
+    const res = await appWith({}).fetch(new Request('http://localhost/api/affirmation'));
+    expect(res.status).toBe(404);
+  });
+});

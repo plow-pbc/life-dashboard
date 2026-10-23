@@ -23,9 +23,10 @@ const CAL_LOAD_LIMIT = 500;
 // the Home tile's NEXT_N rail. Still a cap; the rail scrolls.
 const CAL_PANE_NEXT_N = 50;
 
-// The affirmation is the only remaining posted card (card 2). Weather and sports
-// are now self-fetching components, no longer generic posted cards.
-const AFFIRMATION_CARD = '2';
+// The affirmation is the one card the agent still composes, but it is no longer
+// a pushed card: the agent drops ~/ld-data/affirmation.json on the Pi over the
+// wall SSH path (like the Cook Tonight pin), and /api/affirmation reads it live.
+// Weather and sports self-fetch; the affirmation is fetched the same way here.
 
 type State = { kind: 'loading' } | CalendarResult;
 
@@ -64,7 +65,7 @@ export function App() {
 
     (async () => {
       try {
-        const res = await fetch(`api/message?card=${AFFIRMATION_CARD}`);
+        const res = await fetch('api/affirmation');
         if (!res.ok) return;
         const body = (await res.json()) as { message: MessageType | null };
         if (!cancelled) setAffirmation(body.message);
