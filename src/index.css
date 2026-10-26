@@ -450,16 +450,10 @@ body {
   line-height: 1.38;
   color: var(--ink);
 }
-.affirmation-date {
-  margin-top: auto;
-  padding-top: 14px;
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: var(--t-eyebrow);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--lavender-ink);
-}
+/* The "Posted <date>" footer is intentionally dropped (Option B): in this
+   single-row affirmation cell its ~2 lines of height go to the note instead, so a
+   ~180-char line auto-fits. The grid is unchanged and the calendar keeps its full
+   height. (No .affirmation-date rule; the component no longer renders it.) */
 .tile-empty {
   margin: 0;
   font-family: var(--ff-body);

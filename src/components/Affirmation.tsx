@@ -4,15 +4,16 @@ import { useFitText } from './useFitText';
 type Props = { message: MessageType | null };
 
 // The affirmation card (posted card 2, lavender family) in the mockup's
-// `.affirmation` slot. A producer posts the note via /api/message?card=2; the
-// optional top-level `date` ("Oct 15") renders as a subtle mono footnote,
-// styled like the mockup footer's "Updated 8:14 AM". Empty/absent message →
-// the quiet invitation, matching the other posted cards.
+// `.affirmation` slot. A producer posts the note via /api/message?card=2.
+// Empty/absent message → the quiet invitation, matching the other posted cards.
 //
 // The note AUTO-FITS: a short line renders large so the tile doesn't look lost,
-// a long (~240-char) line shrinks toward a legible floor so it fits without a
+// a longer (~180-char) line shrinks toward a legible floor so it fits without a
 // hard clip. The fit is measured against the bounded .note box (see useFitText
-// and the .note flex/overflow rules in index.css).
+// and the .note flex/overflow rules in index.css). The old "Posted <date>"
+// footer is intentionally dropped: in this single-row cell its ~2 lines of space
+// go to the note so a ~180-char affirmation fits (the message's `date`, if a
+// producer still sends it, is simply not rendered here).
 export function Affirmation({ message }: Props) {
   const text = message?.text.trim();
   const noteRef = useFitText(text, { min: 20, max: 34 });
@@ -26,7 +27,6 @@ export function Affirmation({ message }: Props) {
       ) : (
         <p className="tile-empty">Ask Hive to post an affirmation.</p>
       )}
-      {message?.date && <div className="affirmation-date">Posted {message.date}</div>}
     </section>
   );
 }
