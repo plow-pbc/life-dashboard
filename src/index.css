@@ -609,6 +609,19 @@ a.pinch-tile--tappable {
   padding: 24px 24px 18px;
   min-width: 0;
 }
+
+/* Portrait walls (kanshi transform 90/270 → a 1280-wide viewport): side by side,
+   the month grid gets ~100px day columns and titles break mid-word. Stack the
+   month over the rail at full width instead. */
+@media (orientation: portrait) {
+  .cal-region {
+    flex-direction: column;
+  }
+  .month {
+    flex: 1.6;
+  }
+}
+
 .m-head {
   display: flex;
   align-items: center;
