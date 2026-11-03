@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -280,6 +280,11 @@ describe('fetchSports', () => {
 });
 
 describe('createSportsFetcher', () => {
+  // The fetcher filters to a 14-day window around the real clock, and event()
+  // defaults to a fixed date, so pin the clock to that date (only Date is faked).
+  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-15T21:00Z') }));
+  afterEach(() => vi.useRealTimers());
+
   it('primes an empty list to [] (not null) so the tile can say "No upcoming games"', async () => {
     const store = createSportsFetcher({
       teams: [],
