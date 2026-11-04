@@ -130,10 +130,11 @@ async function fetchScoreboard({ sport, league }, fetchImpl) {
 // return up to `limit` upcoming/live games sorted by date. `teams` is a list of
 // { abbr, sport, league }. An empty list yields [] — the tile shows
 // "No upcoming games". Duplicate games (two followed teams meeting) collapse by
-// event id.
+// event id. The default caps at 9 (three pages of three) so the tile's
+// 3-per-page swipe pager has room without the list growing unbounded.
 export async function fetchSports(
   teams,
-  { now = new Date(), limit = 3, windowMs = WINDOW_MS, fetchImpl = fetch } = {},
+  { now = new Date(), limit = 9, windowMs = WINDOW_MS, fetchImpl = fetch } = {},
 ) {
   const seen = new Map();
   for (const team of teams ?? []) {
@@ -227,7 +228,7 @@ async function writeAtomic(file, data) {
 export function createSportsFetcher({
   teams = [],
   refreshMs = 10 * 60_000,
-  limit = 3,
+  limit = 9,
   logosDir = null,
   fetchImpl = fetch,
   setIntervalImpl = setInterval,
