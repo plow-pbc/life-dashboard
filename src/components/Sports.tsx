@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { paginateGames } from './paginateGames';
 import './Sports.css';
 
 // The Sports tile: an Apple-Sports-style scoreboard for the household's
-// followed teams — up to three game rows laid out as a matchup: away team logo
+// followed teams — game rows laid out as a matchup: away team logo
 // (circular, left) · center column · home team logo (circular, right), under a
 // "Sports" eyebrow. Takes the slot the mockup (dashboard-warm-cal3week.html)
 // calls "trivia", in the seaglass color family.
+//
+// Three games fit the tile at once. When more than three are in the window the
+// rows paginate 3-per-page into a horizontal scroll-snap track: on the touch
+// kiosk a swipe pages between them for free, and a small breadcrumb of dots
+// under the games tracks the current page. At ≤3 games it's a single static
+// column — no scroller, no dots.
 //
 // Center column by game state (mirrors the Apple widget):
 //   - upcoming (pre): the start time, with the weekday under it when not today.
@@ -124,8 +131,23 @@ function Center({ game, now }: { game: Game; now: Date }) {
   );
 }
 
+// One matchup row: away crest · center · home crest.
+function GameRow({ game, now }: { game: Game; now: Date }) {
+  return (
+    <div className={`sp-game sp-${game.state}`}>
+      <div className="sp-row">
+        <TeamCrest team={game.away} />
+        <Center game={game} now={now} />
+        <TeamCrest team={game.home} />
+      </div>
+    </div>
+  );
+}
+
 export function Sports() {
   const [games, setGames] = useState<Game[] | null>(null);
+  const [page, setPage] = useState(0);
+  const pagerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +155,7 @@ export function Sports() {
       try {
         const res = await fetch('api/sports');
         if (!res.ok) return; // 503 before the first upstream fetch lands
-        const body = (await res.json()) as { games: Game[] };
+        const body = (await res.json()) as { games?: Game[] };
         if (!cancelled) setGames(Array.isArray(body.games) ? body.games : []);
       } catch {
         // Non-critical: render nothing. The calendar still loads.
@@ -147,6 +169,18 @@ export function Sports() {
   if (games === null) return null;
 
   const now = new Date();
+  const pages = paginateGames(games);
+  const paged = pages.length > 1;
+  // Clamp against a shrinking snapshot so the active dot can't dangle past the
+  // last page after a refresh drops games.
+  const active = Math.min(page, pages.length - 1);
+
+  // Sync the breadcrumb to whichever page the scroll-snap has landed on.
+  const onScroll = () => {
+    const el = pagerRef.current;
+    if (!el) return;
+    setPage(Math.round(el.scrollLeft / (el.clientWidth || 1)));
+  };
 
   return (
     <section className="sp" aria-label="Sports">
@@ -155,18 +189,29 @@ export function Sports() {
       </div>
       {games.length === 0 ? (
         <div className="sp-empty">No upcoming games</div>
-      ) : (
+      ) : !paged ? (
         <div className="sp-games">
           {games.map((game) => (
-            <div key={game.id} className={`sp-game sp-${game.state}`}>
-              <div className="sp-row">
-                <TeamCrest team={game.away} />
-                <Center game={game} now={now} />
-                <TeamCrest team={game.home} />
-              </div>
-            </div>
+            <GameRow key={game.id} game={game} now={now} />
           ))}
         </div>
+      ) : (
+        <>
+          <div className="sp-pager" ref={pagerRef} onScroll={onScroll}>
+            {pages.map((pageGames, i) => (
+              <div className="sp-page" key={i}>
+                {pageGames.map((game) => (
+                  <GameRow key={game.id} game={game} now={now} />
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="sp-dots" aria-hidden="true">
+            {pages.map((_, i) => (
+              <span key={i} className={`sp-pagedot ${i === active ? 'is-active' : ''}`} />
+            ))}
+          </div>
+        </>
       )}
     </section>
   );

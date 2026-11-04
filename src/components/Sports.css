@@ -220,3 +220,56 @@
   line-height: 1.28;
   color: var(--muted, #6b6b6b);
 }
+
+/* Paginated games: a horizontal scroll-snap track, one page (up to 3 rows) per
+   snap panel. On the touch kiosk a swipe pages between them for free; the
+   breadcrumb dots below sync to the snapped page. Only mounted when there are
+   >3 games — at ≤3 the tile renders a single static .sp-games column with no
+   scroller and no dots. */
+.sp-pager {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  /* horizontal swipe pages the track; pan-y leaves any vertical gesture alone. */
+  touch-action: pan-x;
+  scrollbar-width: none; /* Firefox */
+}
+.sp-pager::-webkit-scrollbar {
+  display: none; /* kiosk Chromium */
+}
+
+/* One full-width page of up to three rows, distributed like the static
+   .sp-games column so a short page doesn't bunch at the top. */
+.sp-page {
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+/* Breadcrumb dots in the slot the old "not covered" footnote occupied: one
+   small, quiet dot per page, the current page's filled. */
+.sp-dots {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+.sp-pagedot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hair, #e7e3da);
+  transition: background 0.2s ease;
+}
+.sp-pagedot.is-active {
+  background: var(--seaglass-ink, #5f6e60);
+}
