@@ -1,4 +1,2 @@
-# Its ld-* skills post to this kiosk over docs/kiosk-protocol.md.
-plow-pbc/seed-life-dashboard-agent
 # Producer of kiosk messages against the canonical protocol.
 plow-pbc/life-assistant-hermes-agent
