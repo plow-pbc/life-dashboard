@@ -1,86 +1,199 @@
-/* Component-scoped styling for <Weather/>. Classes are prefixed `wx-` so they
-   never collide with the head chef's grid CSS in index.css, which this file
-   deliberately does not touch. The only shared contract is the :root theme
-   tokens (--ink / --ff-serif / --ff-mono / --apricot* / --cornflower* …)
-   defined in index.css — the same contract every tile rests on.
-
-   Visual target: the "weather" tile in mockups/dashboard-warm-cal3week.html —
-   big serif temperature, a hi/lo gradient range bar, a "condition · location"
-   caption, under a "Weather" eyebrow + sun badge. Uses the apricot color
-   family (.c-apricot in the mockup). Card chrome (bg/border/radius/shadow/
-   padding) is owned by the grid cell the head chef places this in, so the
-   component paints only its own interior. */
+/* Component-scoped styling for <Weather/> (classes prefixed `wx-`). The slot
+   owns the surface; this paints only the interior. Base rules fit the 2×1 side
+   slot; the container query below scales up for the 4×2 hero. */
 
 .wx {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 14px;
   height: 100%;
   min-height: 0;
+  color: var(--hdr-ink);
 }
 
-.wx-head {
+.wx-now {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 22px;
+  min-width: 0;
 }
-
-.wx-eyebrow {
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: var(--t-eyebrow, 18px);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--apricot-ink, #c06a2c);
-}
-
 .wx-temp {
-  font-family: var(--ff-serif, serif);
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  line-height: 0.82;
-  color: var(--ink, #01000a);
-  font-size: var(--t-figure, 92px);
-}
-
-.wx-range {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-}
-.wx-range .wx-bar {
-  flex: 1;
-  height: 7px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    var(--cornflower, #74a7f6) 0%,
-    var(--apricot, #fba464) 100%
-  );
-}
-.wx-range .wx-lo,
-.wx-range .wx-hi {
-  font-family: var(--ff-mono);
+  font-size: 84px;
   font-weight: 500;
-  font-size: 15px;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
   font-variant-numeric: tabular-nums;
 }
-.wx-range .wx-hi {
-  color: var(--apricot-ink, #c06a2c);
+.wx-sum {
+  flex: 1;
+  min-width: 0;
 }
-.wx-range .wx-lo {
-  color: var(--cornflower-ink, #3470c5);
+.wx-cond {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.wx-cond span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wx-cond .wx-icon {
+  width: 30px;
+  height: 30px;
+}
+.wx-hilo {
+  margin-top: 4px;
+  font-size: 19px;
+  color: var(--glass-ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+.wx-place {
+  display: none;
 }
 
-.wx-caption {
-  font-family: var(--ff-mono);
+.wx-facts {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  text-align: right;
+  font-size: 17px;
+  white-space: nowrap;
+}
+.wx-facts > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.wx-facts dt {
+  color: var(--glass-ink-mute);
+}
+.wx-facts dd {
+  margin: 0;
   font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--apricot-ink, #c06a2c);
-  line-height: 1.4;
-  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-fact-extra {
+  display: none !important;
+}
+
+.wx-hours {
+  list-style: none;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(27, 33, 48, 0.1);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+.wx-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.wx-hour:nth-child(n + 7) {
+  display: none;
+}
+.wx-hour-t {
+  font-size: 15px;
+  color: var(--glass-ink-mute);
+  white-space: nowrap;
+}
+.wx-hour .wx-icon {
+  width: 28px;
+  height: 28px;
+}
+.wx-hour-v {
+  font-size: 19px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- glyph strokes ---- */
+.wx-icon {
+  display: block;
+  flex: none;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wx-i-sun {
+  stroke: #f0a12a;
+}
+.wx-i-moon {
+  stroke: #7b84b8;
+}
+.wx-i-cloud {
+  stroke: #8f9bb0;
+  fill: rgba(255, 255, 255, 0.6);
+}
+.wx-i-rain {
+  stroke: #4f8de0;
+}
+
+/* ---- hero (4×2) ---- */
+@container slot (min-height: 400px) {
+  .wx {
+    padding: 14px 18px 6px;
+    gap: 24px;
+  }
+  .wx-now {
+    gap: 40px;
+  }
+  .wx-temp {
+    font-size: 200px;
+  }
+  .wx-cond {
+    font-size: 34px;
+    gap: 12px;
+  }
+  .wx-cond .wx-icon {
+    width: 46px;
+    height: 46px;
+  }
+  .wx-hilo {
+    margin-top: 8px;
+    font-size: 28px;
+  }
+  .wx-place {
+    display: block;
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--apricot-ink);
+  }
+  .wx-facts {
+    gap: 10px;
+    font-size: 24px;
+  }
+  .wx-fact-extra {
+    display: flex !important;
+  }
+  .wx-hours {
+    padding-top: 22px;
+    grid-template-columns: repeat(8, 1fr);
+  }
+  .wx-hour:nth-child(n + 7) {
+    display: flex;
+  }
+  .wx-hour {
+    gap: 10px;
+  }
+  .wx-hour-t {
+    font-size: 21px;
+  }
+  .wx-hour .wx-icon {
+    width: 42px;
+    height: 42px;
+  }
+  .wx-hour-v {
+    font-size: 30px;
+  }
 }

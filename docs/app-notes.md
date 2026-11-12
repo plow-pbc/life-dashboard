@@ -43,17 +43,17 @@ within the hour.
 | `DASHBOARD_TOKEN` | no | — | Bearer token for the remote write APIs (`/api/message`, `/api/calendar`, the texted-photo CRUD `POST`/`DELETE /api/banners`) and, in fork mode, the off-box `GET /api/version` verification read (see `KIOSK_REMOTE_URL` below for paired mode, which binds loopback only). Setting it enables those routes and binds the server on `0.0.0.0` (LAN-reachable). Secret. |
 | `KIOSK_REMOTE_URL` | no | — | Remote store mode: the Plow kiosk store's cards URL, written by `bootstrap.sh --pair`. `/api/message` is served from a 60 s poll of it (write-through to `data/messages.json` for last-good), `POST /api/message` answers 405, the server binds loopback only, and no banner CRUD mounts. `DASHBOARD_TOKEN` is then the kiosk read token. Blank = local mode, unchanged. |
 | `KIOSK_STATUS_URL` | no | — | Remote store mode: where the updater PUTs `{sha, deployed_at, last_result}` after every run (`updater/README.md`). Read by the updater's unit via `--env-file=%h/ld-current/.env` (a symlink to `~/ld-data/.env`), same as the viewer unit. |
-| `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Cook Tonight strip; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the strip is absent (no row allocated). |
+| `PINCH_DATA_FILE` | no | — | Recipe library JSON for the Home recipe tile; cached photos are read from its sibling `photos/`. Blank → `/api/pinch/*` never mounts and the tile shows its placeholder. |
 
 ## Cook Tonight (optional)
 
-A short strip above the calendar showing one recipe from a Paprika library, with its photo.
+A photo-first Home tile showing one recipe from a Paprika library (see § Home layout for when it takes the hero). Tapping it opens the Meals tab at that recipe.
 
-**This app never writes the recipe files.** A separate out-of-process sync job owns them and rewrites the library on a schedule; the dashboard only reads, which is why the store has no lock and no write path. See [`SEED.md`](../../SEED.md) § Recipe sync for installing that job. Without it, leave `PINCH_DATA_FILE` blank and the strip is simply absent.
+**This app never writes the recipe files.** A separate out-of-process sync job owns them and rewrites the library on a schedule; the dashboard only reads, which is why the store has no lock and no write path. See [`SEED.md`](../../SEED.md) § Recipe sync for installing that job. Without it, leave `PINCH_DATA_FILE` blank and its slot shows an "open spot" placeholder.
 
 Which recipe shows: the most recently cooked, else anything in the library.
 
-Reads are loopback-only like every other read — a recipe library is household data — and served under the same Host guard. The strip is display-only: there is no cooking mode, grocery list, or recipe detail here, and no route mutates anything.
+Reads are loopback-only like every other read — a recipe library is household data — and served under the same Host guard. The tile is display-only: there is no cooking mode, grocery list, or recipe detail here, and no route mutates anything.
 
 Only a photo served by this app's own `/api/pinch/photos/<id>` route is rendered. The sync stores Paprika's URL verbatim when it is publicly fetchable, so a recipe imported from the web can carry a remote one; rendering that would have the kiosk fetch a third-party endpoint on every reload.
 
@@ -80,43 +80,36 @@ the same-origin server (the bearer token never reaches the browser) and renders
 five numbered slots. A card whose slot has no stored message renders a quiet
 invitation placeholder so the layout stays at fixed dimensions all day.
 
-### Card layout
+### Home layout
 
-Cards are dumb numbered slots; **producers decide placement**. The grid is 3
-columns. With a photo banner present: the photo spans 2 tiles on the top row
-with **card 3 (weather)** in the third; **cards 1, 2, 5** sit equal-width on the
-next row (1 alert, 2 affirmation, 5 sports); **card 4 (digest)** gets its own
-full-width row at 2× the card-row height below the calendar. Each position keeps a stable
-warm category accent (1 clay, 2 lavender, 3 cornflower, 4 seaglass, 5 clay) so
-the palette doesn't shift as content changes.
-
-Bannerless:
+Home is a fixed 4×6 grid (`src/home/layout.ts`); every slot is a whole number
+of units and only which widget fills a slot changes, never its size:
 
 ```
-┌─────────┬─────────┬─────────┐
-│  Card 1 │  Card 2 │  Card 3 │  15rem
-├─────────┴─────────┴─────────┤
-│           Card 5            │  15rem
-├─────────────────────────────┤
-│      Cook Tonight strip     │  8rem  — conditional, see below
-├─────────────────────────────┤
-│                             │
-│          Calendar           │  flexible
-│                             │
-├─────────────────────────────┤
-│           Card 4            │  30rem
-└─────────────────────────────┘
+┌───────────────────────────────┐
+│ clock · date · card 2 line    │  header, 4×1
+├───────────────────────────────┤
+│             hero              │  4×2 — the moment picks what fills it
+├───────────────┬───────────────┤
+│               │  side slot 1  │
+│   calendar    ├───────────────┤
+│  (2 weeks +   │  side slot 2  │  three 2×1 slots
+│   up next)    ├───────────────┤
+│               │  side slot 3  │
+└───────────────┴───────────────┘
 ```
 
-With a photo banner, the top two rows become `banner banner card3` / `card1
-card2 card5`; the rest is unchanged.
+**Card 2** is the only posted card on Home: its text is the line under the
+clock, shrunk to fit and clamped, so keep it to one short line. The hero shows
+weather from 5 to 11am, a followed team's game from 2h before its start until
+4h after, and otherwise the planned (else most recent) meal; a dinner planned
+tonight holds the hero until 7:30pm (`src/home/moments.ts`). Whatever is in the
+hero leaves the side slots; the rest fill them in the order cooking, sports,
+weather, photos, so photos always take the last slot.
 
-The Cook Tonight strip appears only when there is a recipe to show: the snapshot
-is configured AND the library has at least one recipe. No snapshot, an empty
-library, or a failed fetch all render nothing — `<CookTonight/>` returns null and
-`.app:has(.pinch-tile)` never matches, so the kiosk keeps the full calendar
-height rather than showing a blank card. Same bargain `.app:has(.banner)`
-strikes for the photo.
+The recipe snapshot may carry an optional `plan` array (meals for the coming
+week); the recipe tile then labels its pick "Tonight", "Thu dinner" and so on.
+A snapshot without one falls back to the most recently cooked recipe.
 
 ### Wire contract
 

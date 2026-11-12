@@ -21,6 +21,20 @@ describe('JsonStore', () => {
     expect(s.read()).toEqual({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: null });
   });
 
+  it('passes the meal plan through, dropping malformed entries', () => {
+    const ok = { date: '2026-11-12', slot: 'dinner', recipeId: 'a' };
+    const s = storeWith({
+      recipes: [],
+      plan: [
+        ok,
+        { date: '11/12', slot: 'dinner', recipeId: 'a' },
+        { ...ok, slot: 'brunch' },
+        { ...ok, recipeId: 7 },
+      ],
+    });
+    expect(s.read()).toEqual({ recipes: [], tonightRecipeId: null, plan: [ok] });
+  });
+
   it('preserves a top-level tonightRecipeId (Pinch meal-plan pick)', () => {
     const s = storeWith({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: 'a' });
     expect(s.read()).toEqual({ recipes: [{ id: 'a', title: 'Soup' }], tonightRecipeId: 'a' });
@@ -44,6 +58,18 @@ describe('JsonStore', () => {
   ])('throws on %s rather than reading empty', (_label, lib) => {
     expect(() => storeWith(lib).read()).toThrow();
   });
+
+  it('reports the file mtime as an ISO string (the freshness stamp)', () => {
+    const s = storeWith({ recipes: [] });
+    const iso = s.mtimeISO();
+    expect(iso).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+    // A just-written file is recent, not some epoch default.
+    expect(Date.now() - Date.parse(iso)).toBeLessThan(60_000);
+  });
+
+  it('reports null mtime for an absent file (ordinary pre-sync state)', () => {
+    expect(storeWith(undefined).mtimeISO()).toBeNull();
+  });
 });
 
 // The pin reader deliberately diverges from JsonStore's fail-loud stance: the pin
@@ -53,7 +79,11 @@ function pinFileWith(contents) {
   const dir = mkdtempSync(join(tmpdir(), 'pinch-pin-'));
   const filePath = join(dir, 'tonight.json');
   if (contents !== undefined) {
-    writeFileSync(filePath, typeof contents === 'string' ? contents : JSON.stringify(contents), 'utf8');
+    writeFileSync(
+      filePath,
+      typeof contents === 'string' ? contents : JSON.stringify(contents),
+      'utf8',
+    );
   }
   return filePath;
 }

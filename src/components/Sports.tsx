@@ -43,7 +43,7 @@ import './Sports.css';
 // leaves the cell empty rather than asserting "No upcoming games" falsely.
 
 type Team = { abbr: string; score: number | null; logo: string | null };
-type Game = {
+export type Game = {
   id: string;
   date: string | null;
   league: string | null;
@@ -144,27 +144,10 @@ function GameRow({ game, now }: { game: Game; now: Date }) {
   );
 }
 
-export function Sports() {
-  const [games, setGames] = useState<Game[] | null>(null);
+// `games` is null until the feed answers, and on any failure: render nothing.
+export function Sports({ games }: { games: Game[] | null }) {
   const [page, setPage] = useState(0);
   const pagerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('api/sports');
-        if (!res.ok) return; // 503 before the first upstream fetch lands
-        const body = (await res.json()) as { games?: Game[] };
-        if (!cancelled) setGames(Array.isArray(body.games) ? body.games : []);
-      } catch {
-        // Non-critical: render nothing. The calendar still loads.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   if (games === null) return null;
 

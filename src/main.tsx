@@ -10,6 +10,7 @@ import '@fontsource/dm-sans/300.css'; // light running copy
 import '@fontsource/dm-sans/300-italic.css'; // empty-card placeholder
 import '@fontsource/dm-sans/400.css'; // body default (unstyled text)
 import '@fontsource/dm-sans/500.css'; // event titles
+import '@fontsource/dm-sans/600.css'; // Home calendar day letters and event titles
 import '@fontsource/dm-sans/700.css'; // bold — producer widget HTML (e.g. sports scores)
 import '@fontsource/dm-mono/500.css'; // eyebrows / captions / date rail
 import './index.css';

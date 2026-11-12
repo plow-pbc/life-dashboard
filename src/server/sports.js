@@ -26,6 +26,32 @@ import { join } from 'node:path';
 
 const WINDOW_MS = 14 * 24 * 60 * 60_000;
 
+// ESPN league-slug corrections. A team is configured with a {sport, league}
+// slug that ESPN's scoreboard path embeds verbatim; a wrong slug 400s and the
+// feed is skipped, so that team silently never appears. These map the slugs
+// people reasonably write to the ones ESPN actually serves:
+//   - `ncaa` → `college-football` (the configured ncaa teams are football)
+//   - `nwsl` → `usa.nwsl` (ESPN nests domestic soccer leagues under a country code)
+const LEAGUE_SLUG_FIXES = {
+  ncaa: 'college-football',
+  nwsl: 'usa.nwsl',
+};
+
+// Leagues ESPN publishes NO scoreboard feed for under any known slug. A team in
+// one of these can never be fetched, so instead of skipping it silently (a
+// dead/empty tile with no explanation) the tile surfaces an honest "not
+// covered" note. PWHL has no ESPN scoreboard endpoint.
+const UNSUPPORTED_LEAGUES = new Set(['pwhl']);
+
+// Resolve a configured league slug to the one ESPN serves, and report whether
+// ESPN covers it at all. Pure — the slug is the only input. `supported:false`
+// means "don't spend a request that can only 400; surface it as not-covered".
+export function normalizeLeague(league) {
+  const raw = String(league ?? '').trim().toLowerCase();
+  if (UNSUPPORTED_LEAGUES.has(raw)) return { league: raw, supported: false };
+  return { league: LEAGUE_SLUG_FIXES[raw] ?? raw, supported: true };
+}
+
 // Logos are only ever fetched from ESPN's own CDN. Pinning the host closes the
 // SSRF surface: a tampered/compromised scoreboard payload can't steer the
 // server into fetching an arbitrary (e.g. internal) URL — a non-ESPN logo URL
@@ -138,14 +164,19 @@ export async function fetchSports(
 ) {
   const seen = new Map();
   for (const team of teams ?? []) {
+    const { league, supported } = normalizeLeague(team.league);
+    // A league ESPN has no feed for: don't spend a request that can only 400.
+    if (!supported) continue;
     try {
-      const json = await fetchScoreboard(team, fetchImpl);
+      // Fetch the CORRECTED slug, not the one as configured, so a well-known
+      // typo (e.g. ncaa) resolves to ESPN's real endpoint instead of 400-ing.
+      const json = await fetchScoreboard({ sport: team.sport, league }, fetchImpl);
       for (const game of parseScoreboard(json, team.abbr, now, windowMs)) {
         if (!seen.has(game.id)) seen.set(game.id, game);
       }
     } catch (err) {
       // One bad feed is skipped, not fatal.
-      console.warn(`sports feed ${team.sport}/${team.league} (${team.abbr}) failed: ${err.message}`);
+      console.warn(`sports feed ${team.sport}/${league} (${team.abbr}) failed: ${err.message}`);
     }
   }
   return [...seen.values()]

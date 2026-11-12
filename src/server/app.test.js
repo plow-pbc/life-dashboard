@@ -290,27 +290,27 @@ describe('createApp', () => {
     });
 
     it('routes the derived self hostname to /api/* instead of 403', async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
+      vi.spyOn(os, 'hostname').mockReturnValue('kiosk-pi');
       const fetcher = vi.fn().mockResolvedValue('FRESH');
       const app = appWith(fetcher);
-      const res = await app.fetch(new Request('http://my-kiosk/api/ical'));
+      const res = await app.fetch(new Request('http://kiosk-pi/api/ical'));
       expect(res.status).toBe(200);
       expect(fetcher).toHaveBeenCalledTimes(1);
     });
 
     it('does not reject the derived self hostname at /banners/*', async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
+      vi.spyOn(os, 'hostname').mockReturnValue('kiosk-pi');
       const app = appWith(vi.fn());
-      const res = await app.fetch(new Request('http://my-kiosk/banners/banner_1.png'));
+      const res = await app.fetch(new Request('http://kiosk-pi/banners/banner_1.png'));
       // Static mount lives in server.js, so a passed guard falls through to
       // 404 here — the point is it is not 403'd by the host guard.
       expect(res.status).not.toBe(403);
     });
 
     it("rejects an FQDN that is not this machine's bare hostname", async () => {
-      vi.spyOn(os, 'hostname').mockReturnValue('my-kiosk');
+      vi.spyOn(os, 'hostname').mockReturnValue('kiosk-pi');
       const app = appWith(vi.fn());
-      const res = await app.fetch(new Request('http://my-kiosk.tailnet.ts.net/api/ical'));
+      const res = await app.fetch(new Request('http://kiosk-pi.tailnet.ts.net/api/ical'));
       expect(res.status).toBe(403);
     });
   });

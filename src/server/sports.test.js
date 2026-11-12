@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mkdtemp, readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +8,7 @@ import {
   createSportsFetcher,
   cacheLogos,
   logoKey,
+  normalizeLeague,
 } from './sports.js';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -223,6 +224,26 @@ describe('cacheLogos', () => {
   });
 });
 
+describe('normalizeLeague', () => {
+  it('rewrites a well-known wrong slug to the one ESPN serves', () => {
+    expect(normalizeLeague('ncaa')).toEqual({ league: 'college-football', supported: true });
+    expect(normalizeLeague('nwsl')).toEqual({ league: 'usa.nwsl', supported: true });
+  });
+
+  it('passes a correct slug through unchanged', () => {
+    expect(normalizeLeague('nfl')).toEqual({ league: 'nfl', supported: true });
+    expect(normalizeLeague('college-football')).toEqual({ league: 'college-football', supported: true });
+  });
+
+  it('is case/space-insensitive on the input slug', () => {
+    expect(normalizeLeague('  NCAA ')).toEqual({ league: 'college-football', supported: true });
+  });
+
+  it('flags a league ESPN has no feed for as unsupported', () => {
+    expect(normalizeLeague('pwhl')).toEqual({ league: 'pwhl', supported: false });
+  });
+});
+
 describe('fetchSports', () => {
   it('returns [] for an empty followed-teams list (no fetch)', async () => {
     const fetchImpl = vi.fn();
@@ -265,6 +286,31 @@ describe('fetchSports', () => {
     expect(games.map((g) => g.id)).toEqual(['c']);
   });
 
+  it('fetches the CORRECTED slug for a well-known typo (ncaa → college-football)', async () => {
+    const urls = [];
+    const fetchImpl = vi.fn(async (url) => {
+      urls.push(url);
+      return json(scoreboard([event({ id: 'g', away: { abbr: 'UCLA', score: '0' }, home: { abbr: 'USC', score: '0' } })]));
+    });
+    const games = await fetchSports(
+      [{ abbr: 'UCLA', sport: 'football', league: 'ncaa' }],
+      { now: NOW, fetchImpl },
+    );
+    expect(urls[0]).toContain('/football/college-football/');
+    expect(urls[0]).not.toContain('/ncaa/');
+    expect(games.map((g) => g.id)).toEqual(['g']);
+  });
+
+  it('does not spend a request on an ESPN-unsupported league', async () => {
+    const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'x' })])));
+    const games = await fetchSports(
+      [{ abbr: 'GSV', sport: 'hockey', league: 'pwhl' }],
+      { now: NOW, fetchImpl },
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(games).toEqual([]);
+  });
+
   it('collapses a duplicate game two followed teams share', async () => {
     const shared = event({ id: 'dup', away: { abbr: 'SF', score: '3' }, home: { abbr: 'GS', score: '4' } });
     const fetchImpl = vi.fn(async () => json(scoreboard([shared])));
@@ -280,11 +326,6 @@ describe('fetchSports', () => {
 });
 
 describe('createSportsFetcher', () => {
-  // The fetcher filters to a 14-day window around the real clock, and event()
-  // defaults to a fixed date, so pin the clock to that date (only Date is faked).
-  beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-15T21:00Z') }));
-  afterEach(() => vi.useRealTimers());
-
   it('primes an empty list to [] (not null) so the tile can say "No upcoming games"', async () => {
     const store = createSportsFetcher({
       teams: [],
@@ -297,7 +338,10 @@ describe('createSportsFetcher', () => {
   });
 
   it('serves fetched games from get() after priming', async () => {
-    const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'a' })])));
+    // createSportsFetcher uses the real clock (no injected `now`), so date the
+    // event at today — a fixed past date would silently fall out of the 14-day
+    // window as the calendar advances and flake this test.
+    const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'a', date: new Date().toISOString() })])));
     const store = createSportsFetcher({
       teams: [{ abbr: 'SF', sport: 'football', league: 'nfl' }],
       fetchImpl,
@@ -308,7 +352,8 @@ describe('createSportsFetcher', () => {
   });
 
   it('strips the server-only logoUrl from the served snapshot, keeping the local logo path', async () => {
-    const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'a' })])));
+    // Dated at today for the same reason as the priming test above (real clock).
+    const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'a', date: new Date().toISOString() })])));
     const store = createSportsFetcher({
       teams: [{ abbr: 'SF', sport: 'football', league: 'nfl' }],
       fetchImpl,

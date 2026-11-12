@@ -5,6 +5,7 @@
 //   1. GET /points/{lat},{lon}            → the gridpoint + the per-office
 //                                            forecast + hourly-forecast URLs
 //   2. GET {forecastHourly}               → current temperature (first period)
+//                                            and the next hours' strip
 //      GET {forecast}                     → today's hi/lo + a short condition
 //
 // The parse is split out from the fetch so it can be unit-tested against
@@ -12,8 +13,9 @@
 // wraps the parse in a single-slot server-side cache that refreshes on an
 // interval — the viewer tile reads the cached snapshot, never the upstream.
 
-const USER_AGENT =
-  'life-dashboard-viewer (kitchen kiosk; https://github.com/plow)';
+import { sunTimes } from './sun.js';
+
+const USER_AGENT = 'life-dashboard-viewer (kitchen kiosk; https://github.com/plow)';
 
 // NWS wants coordinates rounded to ~4 decimals; more just 301-redirects.
 function roundCoord(n) {
@@ -45,6 +47,27 @@ export function parseCurrentTemp(hourlyJson) {
   };
 }
 
+// Parse the hourly forecast into the next `count` hours for the tile's strip:
+// start time, temperature, condition and chance of rain. Periods missing a
+// start or a temperature are skipped rather than shown as holes.
+export function parseHourly(hourlyJson, count = 12) {
+  const periods = hourlyJson?.properties?.periods;
+  if (!Array.isArray(periods)) return [];
+  return periods
+    .filter((p) => typeof p?.startTime === 'string' && typeof p.temperature === 'number')
+    .slice(0, count)
+    .map((p) => ({
+      time: p.startTime,
+      temp: Math.round(p.temperature),
+      condition: (p.shortForecast || '').trim(),
+      isDaytime: p.isDaytime !== false,
+      precip:
+        typeof p.probabilityOfPrecipitation?.value === 'number'
+          ? p.probabilityOfPrecipitation.value
+          : null,
+    }));
+}
+
 // Parse the twice-daily forecast into today's hi/lo + a short condition.
 //
 // NWS periods come in day/night pairs flagged isDaytime, each with a single
@@ -61,9 +84,7 @@ export function parseDayRange(forecastJson) {
   const head = periods.slice(0, 2);
   const day = head.find((p) => p.isDaytime) ?? head[0];
   const night = head.find((p) => !p.isDaytime) ?? head[0];
-  const temps = head
-    .map((p) => p.temperature)
-    .filter((t) => typeof t === 'number');
+  const temps = head.map((p) => p.temperature).filter((t) => typeof t === 'number');
   if (temps.length === 0) throw new Error('forecast periods missing temperatures');
   return {
     hi: Math.round(day.isDaytime ? day.temperature : Math.max(...temps)),
@@ -74,12 +95,25 @@ export function parseDayRange(forecastJson) {
   };
 }
 
-// Combine the three upstream responses into the snapshot the tile renders.
-export function buildWeather({ pointsJson, hourlyJson, forecastJson, location }) {
+// Combine the three upstream responses (plus the day's sun times, computed
+// locally) into the snapshot the tile renders.
+export function buildWeather({ pointsJson, hourlyJson, forecastJson, location, sun = null }) {
   parsePoints(pointsJson); // validate shape even though URLs already used upstream
   const { temp, unit } = parseCurrentTemp(hourlyJson);
   const { hi, lo, condition } = parseDayRange(forecastJson);
-  return { temp, unit, hi, lo, condition, location };
+  const now = hourlyJson.properties.periods[0];
+  return {
+    temp,
+    unit,
+    hi,
+    lo,
+    condition,
+    location,
+    wind: typeof now.windSpeed === 'string' ? now.windSpeed : null,
+    hourly: parseHourly(hourlyJson),
+    sunrise: sun?.sunrise ? sun.sunrise.toISOString() : null,
+    sunset: sun?.sunset ? sun.sunset.toISOString() : null,
+  };
 }
 
 async function getJson(url, fetchImpl) {
@@ -94,7 +128,7 @@ async function getJson(url, fetchImpl) {
 
 // One network pass: resolve the gridpoint, then read current + daily. Pure
 // transport around the testable parsers above.
-export async function fetchWeather({ lat, lon, location }, fetchImpl = fetch) {
+export async function fetchWeather({ lat, lon, location }, fetchImpl = fetch, now = new Date()) {
   const pointsUrl = `https://api.weather.gov/points/${roundCoord(lat)},${roundCoord(lon)}`;
   const pointsJson = await getJson(pointsUrl, fetchImpl);
   const { forecast, forecastHourly } = parsePoints(pointsJson);
@@ -102,7 +136,8 @@ export async function fetchWeather({ lat, lon, location }, fetchImpl = fetch) {
     getJson(forecastHourly, fetchImpl),
     getJson(forecast, fetchImpl),
   ]);
-  return buildWeather({ pointsJson, hourlyJson, forecastJson, location });
+  const sun = sunTimes(now, lat, lon);
+  return buildWeather({ pointsJson, hourlyJson, forecastJson, location, sun });
 }
 
 // Single-slot cache + background refresh. Returns a store with get(): the
