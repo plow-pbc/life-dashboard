@@ -6,7 +6,7 @@ import { Banner } from '../components/Banner';
 import { CalendarMini } from '../components/CalendarMini';
 import { CookTonight } from '../components/CookTonight';
 import { Header } from '../components/Header';
-import { Sports } from '../components/Sports';
+import { Sports, type Game } from '../components/Sports';
 import { Weather } from '../components/Weather';
 import type { Event } from '../types';
 import type { WidgetId } from './layout';
@@ -23,6 +23,8 @@ export type HomeContext = {
   staleGeneratedAt: Date | null;
   isError: boolean;
   onOpenRecipe: (recipeId: string) => void;
+  /** The followed teams' games (null until the feed answers, or on failure). */
+  games: Game[] | null;
   /** The synced Pinch library (null until it loads, or when unconfigured). */
   collection: Collection | null;
   /** Whether the library fetch has finished. */
@@ -73,9 +75,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   },
   sports: {
     surface: 'glass',
-    render: () => (
+    render: ({ games }) => (
       <section className="card c-seaglass">
-        <Sports />
+        <Sports games={games} />
       </section>
     ),
   },
