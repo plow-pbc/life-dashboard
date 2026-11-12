@@ -9,7 +9,6 @@ import {
   cacheLogos,
   logoKey,
   normalizeLeague,
-  uncoveredTeams,
 } from './sports.js';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -245,26 +244,6 @@ describe('normalizeLeague', () => {
   });
 });
 
-describe('uncoveredTeams', () => {
-  it('lists only the teams whose league ESPN does not cover, upper-cased', () => {
-    const teams = [
-      { abbr: 'sf', sport: 'football', league: 'nfl' },
-      { abbr: 'gsv', sport: 'hockey', league: 'pwhl' },
-      { abbr: 'ucla', sport: 'football', league: 'ncaa' },
-    ];
-    expect(uncoveredTeams(teams)).toEqual([{ abbr: 'GSV', league: 'PWHL' }]);
-  });
-
-  it('is empty when every league is covered (incl. after normalization)', () => {
-    const teams = [
-      { abbr: 'SF', sport: 'football', league: 'nfl' },
-      { abbr: 'UCLA', sport: 'football', league: 'ncaa' },
-      { abbr: 'BAY', sport: 'soccer', league: 'nwsl' },
-    ];
-    expect(uncoveredTeams(teams)).toEqual([]);
-  });
-});
-
 describe('fetchSports', () => {
   it('returns [] for an empty followed-teams list (no fetch)', async () => {
     const fetchImpl = vi.fn();
@@ -370,18 +349,6 @@ describe('createSportsFetcher', () => {
     });
     await store.ready();
     expect(store.get()).toHaveLength(1);
-  });
-
-  it('exposes the static uncovered-teams list derived from the config', () => {
-    const store = createSportsFetcher({
-      teams: [
-        { abbr: 'SF', sport: 'football', league: 'nfl' },
-        { abbr: 'GSV', sport: 'hockey', league: 'pwhl' },
-      ],
-      fetchImpl: vi.fn(async () => json(scoreboard([]))),
-      setIntervalImpl: () => ({ unref() {} }),
-    });
-    expect(store.uncovered).toEqual([{ abbr: 'GSV', league: 'PWHL' }]);
   });
 
   it('strips the server-only logoUrl from the served snapshot, keeping the local logo path', async () => {

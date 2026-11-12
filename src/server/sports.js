@@ -52,18 +52,6 @@ export function normalizeLeague(league) {
   return { league: LEAGUE_SLUG_FIXES[raw] ?? raw, supported: true };
 }
 
-// The configured teams whose league ESPN does not cover, shaped for the tile's
-// honest "not covered" note. Static (derived from config, not a fetch), so the
-// fetcher computes it once and serves it beside the live games.
-export function uncoveredTeams(teams) {
-  return (teams ?? [])
-    .filter((t) => !normalizeLeague(t.league).supported)
-    .map((t) => ({
-      abbr: String(t.abbr ?? '').toUpperCase(),
-      league: String(t.league ?? '').toUpperCase(),
-    }));
-}
-
 // Logos are only ever fetched from ESPN's own CDN. Pinning the host closes the
 // SSRF surface: a tampered/compromised scoreboard payload can't steer the
 // server into fetching an arbitrary (e.g. internal) URL — a non-ESPN logo URL
@@ -177,8 +165,7 @@ export async function fetchSports(
   const seen = new Map();
   for (const team of teams ?? []) {
     const { league, supported } = normalizeLeague(team.league);
-    // A league ESPN has no feed for is surfaced to the tile as "not covered"
-    // (see uncoveredTeams); don't spend a request that can only 400.
+    // A league ESPN has no feed for: don't spend a request that can only 400.
     if (!supported) continue;
     try {
       // Fetch the CORRECTED slug, not the one as configured, so a well-known
@@ -277,10 +264,6 @@ export function createSportsFetcher({
   fetchImpl = fetch,
   setIntervalImpl = setInterval,
 } = {}) {
-  // Static, config-derived: the teams whose league ESPN doesn't cover. Computed
-  // once and served beside the live games so the tile can show an honest note
-  // rather than silently dropping them. Mirrors how `logosDir` is exposed.
-  const uncovered = uncoveredTeams(teams);
   let snapshot = null;
   const refresh = async () => {
     try {
@@ -303,6 +286,5 @@ export function createSportsFetcher({
     ready: () => primed,
     refresh,
     logosDir,
-    uncovered,
   };
 }
