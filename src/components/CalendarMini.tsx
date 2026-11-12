@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { buildUpNext, sameDay, type UpNextItem } from '../calendarLayout';
-import { eventKind, eventsOn, monthDays, wordTitle } from '../home/widgetData';
+import { eventsOn, monthDays, wordTitle } from '../home/widgetData';
 import type { Event } from '../types';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -71,8 +71,8 @@ export function CalendarMini({ events, upNext, now, staleGeneratedAt }: Props) {
             >
               <span className="cm-n">{d.day}</span>
               <span className="cm-dots">
-                {d.dots.map((kind, i) => (
-                  <i key={i} className={`ev-${kind}`} />
+                {d.dots.map((accent, i) => (
+                  <i key={i} className={accent} />
                 ))}
               </span>
             </button>
@@ -83,7 +83,7 @@ export function CalendarMini({ events, upNext, now, staleGeneratedAt }: Props) {
       <div className="cm-list">
         {list.map((ev) => (
           <div className="cm-ev" key={ev.key}>
-            <i className={`cm-bar ev-${eventKind(ev.title)}`} />
+            <i className={`cm-bar ${ev.accent}`} />
             <div className="cm-text">
               <div className="cm-title">{wordTitle(ev.title)}</div>
               <div className="cm-meta">{meta(ev)}</div>
