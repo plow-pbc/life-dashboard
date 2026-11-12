@@ -1,72 +1,62 @@
-import type { MonthLayout, UpNextItem } from '../calendarLayout';
-import type { Message as MessageType } from '../message';
-import { Banner } from './Banner';
-import { Weather } from './Weather';
-import { Sports } from './Sports';
-import { Affirmation } from './Affirmation';
-import { CookTonight } from './CookTonight';
-import { CalendarMonth } from './CalendarMonth';
-import { UpNext } from './UpNext';
+import { useEffect, useState } from 'react';
+import { SLOTS, assignSlots, gridArea, type SlotId } from '../home/layout';
+import { pickHero, type GameTime } from '../home/moments';
+import { WIDGETS, type HomeContext } from '../home/registry';
+import { useCollection } from '../home/useCollection';
+import { hasDinnerTonight } from '../pinch';
+import { useMinuteClock } from './useMinuteClock';
 
-type Props = {
-  affirmation: MessageType | null;
-  month: MonthLayout;
-  upNext: UpNextItem[];
-  staleGeneratedAt: Date | null;
-  isError: boolean;
-  // Open a recipe in the Meals embed (a Cook Tonight tap). Threaded to CookTonight.
-  onOpenRecipe: (recipeId: string) => void;
-};
+/** The followed teams' games, for spotting game night. Empty until the feed
+ *  answers, and on any failure — then the hero just falls back to the meal. */
+function useGames() {
+  const [games, setGames] = useState<GameTime[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('api/sports');
+        if (!res.ok) return;
+        const body = (await res.json()) as { games?: GameTime[] };
+        if (!cancelled) setGames(body.games ?? []);
+      } catch {
+        // Non-critical: no game night without the feed.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return games;
+}
 
-// The Home pane: the original dashboard grid of tiles, lifted verbatim out of App
-// so the shell can swap it with the other panes. Visually unchanged — it still
-// fills its box (now the viewport minus the bottom nav) via the .app grid.
-export function HomePane({
-  affirmation,
-  month,
-  upNext,
-  staleGeneratedAt,
-  isError,
-  onOpenRecipe,
-}: Props) {
+// The Home pane: fixed slots on the 4×6 grid, each filled from the widget
+// registry. The slot owns the size and surface; the widget only fills it. The
+// moment (time of day, game night, a planned dinner) only decides what fills
+// the 4×2 hero, and the rest fill the side slots in priority order — no slot
+// ever resizes.
+export function HomePane(props: Omit<HomeContext, 'now' | 'collection' | 'collectionSettled'>) {
+  const now = useMinuteClock();
+  const games = useGames();
+  const { collection, settled } = useCollection();
+  const ctx: HomeContext = { ...props, now, collection, collectionSettled: settled };
+  const filled = assignSlots(pickHero(now, games, hasDinnerTonight(collection, now)));
   return (
-    <div className="app">
-      {/* Top-left 2×1 photo */}
-      <Banner />
-
-      {/* Top-middle: weather (apricot) */}
-      <section className="card c-apricot cell-weather">
-        <Weather />
-      </section>
-
-      {/* Top-right: sports (seaglass, mockup's "trivia" slot) */}
-      <section className="card c-seaglass cell-sports">
-        <Sports />
-      </section>
-
-      {/* Row 2 left: affirmation (lavender, posted card 2) */}
-      <div className="cell-affirmation">
-        <Affirmation message={affirmation} />
-      </div>
-
-      {/* Row 2 right: cook tonight (clay, mockup's most-urgent slot) */}
-      <section className="card c-clay cell-cook">
-        <CookTonight onOpenRecipe={onOpenRecipe} />
-      </section>
-
-      {/* Bottom: rolling 3-week calendar + up-next rail */}
-      <div className="cal-region">
-        {isError ? (
-          <section className="card month">
-            <p className="error-state">Can't reach calendar — retrying soon.</p>
-          </section>
-        ) : (
-          <>
-            <CalendarMonth layout={month} />
-            <UpNext items={upNext} staleGeneratedAt={staleGeneratedAt} />
-          </>
-        )}
-      </div>
+    <div className="home">
+      {(Object.keys(SLOTS) as SlotId[]).map((slot) => {
+        const id = filled[slot];
+        const w = WIDGETS[id];
+        return (
+          <div
+            key={slot}
+            className={`slot slot--${w.surface}${w.surface === 'glass' ? ' glass' : ''}`}
+            data-slot={slot}
+            data-widget={id}
+            style={{ gridArea: gridArea(SLOTS[slot]) }}
+          >
+            {w.render(ctx)}
+          </div>
+        );
+      })}
     </div>
   );
 }

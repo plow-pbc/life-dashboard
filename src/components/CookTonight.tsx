@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { isLocalPhotoUrl, pickTonight, type Collection, type TonightPick } from '../pinch';
+import { useState } from 'react';
+import { isLocalPhotoUrl, isMenuStale, pickTonight, type Collection } from '../pinch';
+import { formatDuration, parseMinutes, type Minutes } from '../home/widgetData';
 import { hashForTab } from '../nav';
 
-// The "Cook Tonight" tile: one recipe from the synced Pinch library, with its photo.
+// The recipe tile: one recipe from the synced Pinch library, photo-first, with
+// when it's on and its prep/cook times.
 // Tapping it switches to the MEALS TAB and opens THIS recipe's detail inside the Pinch
 // embed, one time — staying in the shell (the nav stays, tap Home to return); the user
 // taps Cook in Pinch to start. onOpenRecipe stashes the recipe id as an in-memory
@@ -16,92 +18,108 @@ import { hashForTab } from '../nav';
 // a designed invite placeholder (see WidgetSlotPlaceholder below), in the spirit
 // of the empty-<Banner/> state — not an empty cell. A later Lifey flow will let
 // the user pick which widget lives here; for now the recipe is the one widget and
-// the placeholder is the "open slot" invite. See the .pinch-tile / .widget-ph
-// blocks in index.css for the layout contract.
+// the placeholder is the "open slot" invite. See the .rc / .widget-ph blocks in
+// index.css for the layout.
 //
-// Self-fetching rather than fed from App, because the recipe snapshot is
-// independent of the calendar and a recipe failure must never delay or break
-// the calendar render.
-//
-// Note the tile does NOT infer "disabled" from a status code. When the snapshot
-// is unconfigured, /api/pinch/* is never mounted, and server.js's SPA catch-all
-// answers the path with 200 text/html rather than a 404 — so res.json() is what
-// actually rejects, and the catch below is the real disabled path.
-export function CookTonight({ onOpenRecipe }: { onOpenRecipe: (recipeId: string) => void }) {
-  const [pick, setPick] = useState<TonightPick | null>(null);
-  // `settled` flips true once the fetch attempt completes (configured or not), so
-  // the invite placeholder only appears after we've CONFIRMED the slot is empty —
-  // never flashing it during the initial load before a real recipe arrives. This
-  // mirrors <Banner/>'s `loaded` gate.
-  const [settled, setSettled] = useState(false);
+// The library comes from Home (useCollection), which also uses it to decide
+// whether tonight's dinner holds the hero. `settled` gates the invite
+// placeholder so it only appears once the slot is CONFIRMED empty — never
+// flashing during the initial load before a real recipe arrives.
+export function CookTonight({
+  onOpenRecipe,
+  now,
+  collection,
+  settled,
+}: {
+  onOpenRecipe: (recipeId: string) => void;
+  now: Date;
+  collection: Collection | null;
+  settled: boolean;
+}) {
+  // When the library is stale (a failed hourly sync — e.g. an expired recipe
+  // token), the tile dates the menu instead of presenting frozen data as
+  // tonight's plan.
+  const generatedAt = collection?.generatedAt ?? null;
   // A recipe can carry a photoUrl whose bytes aren't cached yet — the library
   // outruns the photo download. Routine, so fall back to the neutral
   // placeholder rather than letting the browser paint a broken-image glyph on
   // a wall display.
   const [photoFailed, setPhotoFailed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('api/pinch/collection');
-        if (!res.ok) return;
-        const body = (await res.json()) as Collection;
-        if (!cancelled) setPick(pickTonight(body));
-      } catch {
-        // Non-critical: the slot is unconfigured. The invite placeholder shows
-        // (via `settled`), and the calendar still loads regardless.
-      } finally {
-        if (!cancelled) setSettled(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const pick = collection ? pickTonight(collection, now) : null;
 
   // No recipe: show the invite once we've confirmed the slot is empty; stay blank
   // (null) while the fetch is still in flight.
   if (!pick) return settled ? <WidgetSlotPlaceholder /> : null;
 
-  const inner = (
-    <>
+  // When the library is stale, the label becomes a dated "Menu from Oct 21"
+  // instead of "Tonight"/"Recently cooked" — the whole point is to stop
+  // presenting a frozen library as tonight's plan. Fresh data keeps pick.meta.
+  const stale = isMenuStale(generatedAt, now);
+  const when =
+    stale && generatedAt
+      ? `Menu from ${new Date(generatedAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        })}`
+      : pick.meta;
+
+  const times: { label: string; min: Minutes }[] = [];
+  for (const [label, text] of [
+    ['Prep', pick.recipe.prepTime],
+    ['Cook', pick.recipe.cookTime],
+  ] as const) {
+    const min = parseMinutes(text);
+    if (min !== null) times.push({ label, min });
+  }
+
+  // Photo-first: the photo fills the tile and the text sits over it on a scrim.
+  // No steps, ingredients or buttons — the whole tile is the tap target.
+  // onOpenRecipe records this recipe's id as the Meals one-shot AND the
+  // href="#meals" switches the tab, so the Meals pane opens the recipe once. The
+  // id is in memory only (never the URL), so the next reload lands on the base
+  // embed.
+  return (
+    <a
+      className="rc"
+      href={hashForTab('meals')}
+      onClick={() => onOpenRecipe(pick.recipe.id)}
+      aria-label={`${when}: open ${pick.recipe.title} in Meals`}
+    >
       {isLocalPhotoUrl(pick.recipe.photoUrl) && !photoFailed ? (
         <img
-          className="pinch-photo--tile"
+          className="rc-photo"
           src={pick.recipe.photoUrl}
           alt=""
           onError={() => setPhotoFailed(true)}
         />
       ) : (
-        <div className="pinch-photo--placeholder" />
+        <div className="rc-photo rc-photo--none" />
       )}
-      <div className="pinch-tile__body">
-        {/* Eyebrow reflects WHY this recipe is shown (pickTonight.meta): "Cook
-            Tonight" for a pin/meal-plan pick, else the recency copy ("Recently
-            opened" / "Recently cooked" / "From your library") — so the tile never
-            labels a fallback as tonight's plan. */}
-        <p className="pinch-tile__eyebrow">{pick.meta}</p>
-        <h2 className="pinch-tile__title">
-          {/* Inner span carries the clamp: a flex item gets blockified, which
-              makes -webkit-box inert. See index.css. */}
-          <span>{pick.recipe.title}</span>
-        </h2>
+      <div className="rc-scrim" />
+      <div className="rc-body">
+        {/* WHEN this recipe is on: "Tonight" for a pin or meal-plan pick, else
+            why it's shown ("Recently opened"…), so a fallback is never labelled
+            as tonight's plan. */}
+        <span className="rc-when">{when}</span>
+        <h2 className="rc-title">{pick.recipe.title}</h2>
+        {times.length > 0 && (
+          <div className="rc-times">
+            {times.map(({ label, min }) => {
+              const d = formatDuration(min);
+              return (
+                <div className="rc-time" key={label}>
+                  <span className="rc-time-n">
+                    {d.value}
+                    <small>{d.unit}</small>
+                  </span>
+                  <span className="rc-time-l">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </>
-  );
-
-  // Always tappable. onOpenRecipe records this recipe's id as the Meals one-shot AND
-  // the href="#meals" switches the tab — the Meals pane then opens the recipe once.
-  // The id is in memory only (never the URL), so the next reload lands on the base embed.
-  return (
-    <a
-      className="pinch-tile pinch-tile--tappable"
-      href={hashForTab('meals')}
-      onClick={() => onOpenRecipe(pick.recipe.id)}
-      aria-label={`${pick.meta}: open ${pick.recipe.title} in Meals`}
-    >
-      {inner}
     </a>
   );
 }

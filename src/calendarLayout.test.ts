@@ -326,4 +326,9 @@ describe('buildUpNext', () => {
   it('respects the limit', () => {
     expect(buildUpNext(events, now, 2)).toHaveLength(2);
   });
+
+  it('calls the next day Tomorrow', () => {
+    const t = timed('t', 'Trash', [2026, 9, 16, 7, 0], [2026, 9, 16, 7, 30]);
+    expect(buildUpNext([t], now, 1)[0].dateLabel).toBe('Tomorrow');
+  });
 });

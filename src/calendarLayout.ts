@@ -466,7 +466,7 @@ export function buildMonthLayout(events: Event[], now: Date): MonthLayout {
 
 export type UpNextItem = {
   key: string;
-  dateLabel: string; // "Today", "Thu Oct 16", or "Oct 12-15" for ranges
+  dateLabel: string; // "Today", "Tomorrow", "Fri, Oct 16", or "Oct 12-15" for ranges
   timeLabel: string; // "7:00 PM", "All day", "All week"
   title: string;
   location: string | null;
@@ -494,6 +494,13 @@ export function buildUpNext(events: Event[], now: Date, limit: number): UpNextIt
     .slice(0, limit)
     .map((event) => {
       const isToday = sameDay(event.start, now);
+      const tomorrow = startOfDay(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const day = isToday
+        ? 'Today'
+        : sameDay(event.start, tomorrow)
+          ? 'Tomorrow'
+          : weekdayMonthDay.format(event.start);
       const last = lastVisibleDay(event);
       const multi = isMultiDay(event);
 
@@ -508,10 +515,10 @@ export function buildUpNext(events: Event[], now: Date, limit: number): UpNextIt
           : `${monthDay.format(event.start)}-${monthDay.format(last)}`;
         timeLabel = 'All week';
       } else if (event.isAllDay) {
-        dateLabel = isToday ? 'Today' : weekdayMonthDay.format(event.start);
+        dateLabel = day;
         timeLabel = 'All day';
       } else {
-        dateLabel = isToday ? 'Today' : weekdayMonthDay.format(event.start);
+        dateLabel = day;
         timeLabel = timeFmt.format(event.start);
       }
 

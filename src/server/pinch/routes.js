@@ -67,7 +67,18 @@ export function registerPinchRoutes(app, { store, photosDir, readPin }) {
   app.get('/api/pinch/collection', (c) => {
     const data = store.read();
     const pinnedRecipeId = readPin ? readPin() : null;
-    return c.json(pinnedRecipeId ? { ...data, pinnedRecipeId } : data);
+    // `generatedAt` is the snapshot's own freshness stamp (the file mtime — the
+    // library has no generated-at field). The tile uses it to show a dated
+    // "menu from …" note when the data is stale instead of presenting a frozen
+    // library as tonight's plan. Omitted (like pinnedRecipeId) when there is no
+    // stamp — no file yet, or a store that predates this field.
+    const generatedAt = typeof store.mtimeISO === 'function' ? store.mtimeISO() : null;
+    const body = {
+      ...data,
+      ...(pinnedRecipeId ? { pinnedRecipeId } : {}),
+      ...(generatedAt ? { generatedAt } : {}),
+    };
+    return c.json(body);
   });
 
   // Locally-cached photo bytes.

@@ -36,6 +36,22 @@ describe('pinch routes', () => {
     expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: 'a' });
   });
 
+  it('surfaces the store mtime as generatedAt (the staleness stamp)', async () => {
+    const store = { read: () => ({ recipes: RECIPES, tonightRecipeId: null }), mtimeISO: () => '2026-10-21T16:56:04.000Z' };
+    const res = await get(appWith({ store }), '/api/pinch/collection');
+    expect(await res.json()).toEqual({
+      recipes: RECIPES,
+      tonightRecipeId: null,
+      generatedAt: '2026-10-21T16:56:04.000Z',
+    });
+  });
+
+  it('omits generatedAt when the store has no snapshot (null mtime)', async () => {
+    const store = { read: () => ({ recipes: RECIPES, tonightRecipeId: null }), mtimeISO: () => null };
+    const res = await get(appWith({ store }), '/api/pinch/collection');
+    expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null });
+  });
+
   it("surfaces Hive's explicit pin as a separate pinnedRecipeId", async () => {
     const res = await get(appWith({ readPin: () => 'a' }), '/api/pinch/collection');
     expect(await res.json()).toEqual({ recipes: RECIPES, tonightRecipeId: null, pinnedRecipeId: 'a' });

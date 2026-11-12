@@ -7,8 +7,7 @@ export type Message = {
   // hides the title entirely, so a producer can reclaim the vertical space.
   title?: string;
   // Optional short posted-date label (e.g. "Oct 15") the producer stamps on the
-  // message. The affirmation card renders it as a mono footnote; absent → no
-  // extra label. Other cards ignore it.
+  // message. No card currently renders it.
   date?: string;
 };
 

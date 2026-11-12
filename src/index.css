@@ -1,9 +1,7 @@
 /* =====================================================================
-   WARM — the single baked-in theme, adapted from the owner's target mockup
-   mockups/dashboard-warm-cal3week.html. A 4-column grid with a warm palette:
-   photo (2×1) + weather + sports across the top, affirmation + cook-tonight
-   on row 2, and the rolling 3-week calendar (month grid + up-next rail)
-   filling the bottom. No theme switcher.
+   The single baked-in theme. Home is a strict 4×6 grid of glass slots on a
+   calm gradient (see THE GRID below); the Calendar and Meals panes still use
+   the warm paper cards. No theme switcher.
 
    Kiosk hardening (portrait rotation, no selection, no overscroll) is kept
    from the viewer; the design tokens and card chrome are the mockup's.
@@ -54,11 +52,39 @@
   /* ---- layout ---- */
   --gap: 16px;
   --pad: 26px;
-  /* The height ONE Home grid row had at full viewport, before the bottom nav
-     existed: the 6 rows split (100vh − top/bottom pad − the 5 inter-row gaps).
-     The top two widget rows are pinned to this so they keep their pre-nav
-     height; the calendar region flexes to absorb the nav's height instead. */
-  --top-row: calc((100vh - 2 * var(--pad) - 5 * var(--gap)) / 6);
+
+  /* ---- Home grid geometry (1280×1920 panel → 278×262 units) ----
+     Side margins and top inset frame the 4×6 grid; the nav sits in its own band
+     below row 6: gutter, the pill, then the bottom margin. */
+  --grid-gutter: 24px;
+  --grid-side: 48px;
+  --grid-top: 56px;
+  --nav-pill-h: 108px;
+  --nav-pill-w: 600px;
+  --nav-bottom: 40px;
+  --nav-band: calc(var(--grid-gutter) + var(--nav-pill-h) + var(--nav-bottom));
+
+  /* ---- glass ----
+     Frosted panels for STILL surfaces only. On the Pi 5 a backdrop blur holds
+     60fps when nothing behind it moves, and drops to ~30fps when something
+     does, so anything that animates swaps the blur for --glass-flat. */
+  --glass-bg: rgba(255, 255, 255, 0.42);
+  --glass-flat: rgba(255, 255, 255, 0.66);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-hi: rgba(255, 255, 255, 0.85);
+  --glass-blur: blur(40px) saturate(170%);
+  --glass-radius: 44px;
+  --glass-shadow: inset 0 1.5px 0 var(--glass-hi), 0 24px 60px -28px rgba(30, 40, 70, 0.35);
+  --glass-ink-mute: rgba(27, 33, 48, 0.55);
+  --hdr-ink: #1b2130;
+  --today: #c4673c;
+
+  /* ---- calm Home background: soft gradient, never a photo ---- */
+  --home-bg:
+    radial-gradient(ellipse 60% 40% at 12% 18%, rgba(201, 216, 242, 0.9), transparent 70%),
+    radial-gradient(ellipse 55% 38% at 92% 52%, rgba(244, 211, 192, 0.75), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 30% 92%, rgba(220, 207, 240, 0.8), transparent 70%),
+    linear-gradient(165deg, #dfe6f0 0%, #e9e6ee 45%, #f2e7de 100%);
 
   /* ---- warm card treatment (mockup .card) ---- */
   --card-bg: var(--paper);
@@ -164,15 +190,13 @@ body {
 /* ============ APP SHELL (bottom-nav) ============
    A hash-routed content pane above a persistent bottom nav. The shell fills the
    viewport (body is the positioned ancestor); the pane takes all height except
-   the nav. Each pane root is `position:absolute; inset:0` so it fills the pane —
-   which is why .app (Home) is unchanged: its inset:0 now resolves against .pane
-   instead of body, i.e. the viewport minus the nav. */
+   the nav band. Each pane root is absolutely positioned against .pane. */
 .shell {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: var(--chalk);
+  background: var(--home-bg);
 }
 .pane {
   position: relative;
@@ -180,41 +204,67 @@ body {
   min-height: 0;
   min-width: 0;
 }
+/* One view per tab. A tab change fades the new one in (a fade, never a slide:
+   nothing may move behind glass); the shell is .is-animating meanwhile. */
+.pane-view {
+  position: absolute;
+  inset: 0;
+}
+.pane-view.is-entering {
+  animation: pane-in 220ms ease-out both;
+}
+@keyframes pane-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* still end the animation, so animationend clears .is-animating */
+  .pane-view.is-entering {
+    animation-duration: 1ms;
+  }
+}
 
-/* Bottom nav: three finger-sized icon+label tap targets, active one highlighted
-   with a cornflower top accent + wash. Touch-friendly (large hit area, no tap
-   highlight flash, manipulation to kill the 300ms delay). */
+/* Bottom nav: a glass pill centred in its own band below the grid. The band
+   is the same height on every tab so the panes above never shift. Three
+   finger-sized icon+label tap targets; the active one sits on a lighter pill.
+   (manipulation kills the 300ms tap delay.) */
 .bottom-nav {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  background: var(--paper);
-  border-top: 1px solid var(--hair);
-  box-shadow: 0 -4px 18px rgba(120, 82, 46, 0.06);
+  flex: 0 0 var(--nav-band);
+  display: flex;
+  justify-content: center;
+  padding: var(--grid-gutter) 0 var(--nav-bottom);
   z-index: 2;
 }
-.nav-item {
+.nav-pill {
+  width: var(--nav-pill-w);
+  height: var(--nav-pill-h);
   display: flex;
-  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: calc(var(--nav-pill-h) / 2);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  min-height: 116px;
-  padding: 14px 0 18px;
+  gap: 12px;
+  border-radius: 44px;
   text-decoration: none;
-  color: var(--faint);
-  font-family: var(--ff-mono);
+  color: var(--glass-ink-mute);
+  font-family: var(--ff-body);
   font-weight: 500;
-  font-size: 17px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  box-shadow: inset 0 3px 0 transparent;
+  font-size: 24px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 .nav-item .nav-icon {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: block;
 }
 .nav-item .nav-icon * {
@@ -225,27 +275,94 @@ body {
   fill: none;
 }
 .nav-item.is-active {
-  color: var(--cornflower-ink);
-  background: rgba(116, 167, 246, 0.1);
-  box-shadow: inset 0 3px 0 var(--cornflower);
+  color: var(--ink);
+  background: var(--glass-hi);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.25);
 }
 
-/* Calendar pane: CalendarMonth + UpNext at full viewport (minus nav). Reuses the
-   .month / .rail cards and their flex basis; the full height is the "roomier". */
+/* ---- glass surface ---- */
+.glass,
+.cal-pane > .card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1.5px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+}
+/* While anything on the page animates or scrolls, glass becomes a flat
+   translucent fill: same look at rest, no per-frame blur cost. */
+.is-animating .glass,
+.is-animating .cal-pane > .card,
+.is-scrolling .glass,
+.is-scrolling .cal-pane > .card {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--glass-flat);
+}
+
+/* Calendar pane: CalendarMonth + UpNext on the same margins and gutter as the
+   Home grid, each a glass card (see .glass above), with Home's label style. */
 .cal-pane {
   position: absolute;
-  inset: 0;
+  inset: var(--grid-top) var(--grid-side) 0;
   display: flex;
-  gap: var(--gap);
-  padding: var(--pad);
+  gap: var(--grid-gutter);
   min-height: 0;
   min-width: 0;
+  color: var(--hdr-ink);
+}
+.cal-pane > .card {
+  border-radius: var(--glass-radius);
+  padding: 30px 28px 24px;
+}
+/* The Home margins narrow the days; give the month more of the width so
+   chip words fit, and break only words longer than a day column. */
+.cal-pane > .month {
+  flex: 2.4;
+}
+.cal-pane .chip {
+  font-size: 16px;
+  overflow-wrap: break-word;
+}
+.cal-pane .m-range,
+.cal-pane .r-head .eyebrow,
+.cal-pane .weekdays span,
+.cal-pane .leg {
+  font-family: var(--ff-body);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--glass-ink-mute);
+}
+.cal-pane .m-range,
+.cal-pane .r-head .eyebrow {
+  font-size: 17px;
+}
+.cal-pane .dnum {
+  font-family: var(--ff-body);
+  font-size: 21px;
+}
+.cal-pane .dnum.today {
+  background: var(--today);
+  box-shadow: none;
+}
+.cal-pane .up.is-today .d {
+  color: var(--today);
+}
+.cal-pane .r-head,
+.cal-pane .week {
+  border-color: rgba(27, 33, 48, 0.1);
 }
 
-/* Meals pane: the Pinch app embedded, filling the pane above the nav. */
+/* Meals pane: the Pinch app embedded in a rounded card on the Home margins.
+   Not glass — the embed scrolls and changes under its own control. */
 .meals-pane {
   position: absolute;
-  inset: 0;
+  inset: var(--grid-top) var(--grid-side) 0;
+  border-radius: var(--glass-radius);
+  overflow: hidden;
+  border: 1.5px solid var(--glass-edge);
+  box-shadow: 0 24px 60px -28px rgba(30, 40, 70, 0.35);
+  background: var(--glass-flat);
 }
 .meals-frame {
   width: 100%;
@@ -265,7 +382,6 @@ body {
   gap: 16px;
   text-align: center;
   padding: var(--pad);
-  background: var(--chalk);
 }
 .meals-empty__icon {
   width: 44px;
@@ -291,22 +407,54 @@ body {
 }
 
 /* ============ THE GRID ============
-   4 columns × 6 rows, matching the mockup's .grid. Photo spans cols 1–2 of
-   row 1; weather col 3; sports col 4. Row 2: affirmation cols 1–2, cook
-   tonight cols 3–4. The calendar region fills rows 3–6 across all columns. */
-.app {
+   Home is a strict 4 × 6 grid of equal units with one gutter everywhere. The
+   slots (see home/layout.ts) are placed inline; every widget fills a whole
+   number of units, so widgets in a row are always the same height. */
+.home {
   position: absolute;
-  inset: 0;
-  /* Equal frame margin on all four sides. Rows 1–2 (the widget tiles) are pinned
-     to --top-row, their full-viewport (pre-nav) height, so the bottom nav never
-     compresses them. Rows 3–6 are 1fr, so the calendar region (.cal-region,
-     rows 3–7) flexes to take whatever height remains — it absorbs the nav's bite
-     and simply gets shorter. Both calendar panes scroll, so nothing is clipped. */
-  padding: var(--pad);
+  inset: var(--grid-top) var(--grid-side) 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: var(--top-row) var(--top-row) repeat(4, 1fr);
-  gap: var(--gap);
+  grid-template-rows: repeat(6, 1fr);
+  gap: var(--grid-gutter);
+}
+.slot {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.slot > * {
+  flex: 1;
+  min-width: 0;
+}
+/* Widgets size themselves to the slot they're in (2×1 side vs 4×2 hero) with
+   @container slot queries. */
+.slot {
+  container: slot / size;
+}
+.slot--glass,
+.slot--tile {
+  border-radius: var(--glass-radius);
+}
+.slot--tile {
+  background: var(--glass-flat);
+  box-shadow: 0 24px 60px -28px rgba(30, 40, 70, 0.45);
+}
+/* The slot is the surface: cards inside it drop their own paper chrome. */
+.slot .card {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.slot--bare .card {
+  padding: 0;
+}
+.slot--tile .photo {
+  border: 0;
+  border-radius: inherit;
 }
 
 /* ---- shared card chrome (mockup .card) ---- */
@@ -343,8 +491,6 @@ body {
 
 /* ============ TOP ROW — photo / weather / sports ============ */
 .photo {
-  grid-column: 1 / 3;
-  grid-row: 1 / 2;
   width: 100%;
   height: 100%;
   border-radius: var(--card-radius);
@@ -414,47 +560,56 @@ body {
   white-space: nowrap;
 }
 
-.cell-weather {
-  grid-column: 3 / 4;
-  grid-row: 1 / 2;
+/* ============ HEADER — clock, date, agent line ============
+   Plain text on the background (no card), filling the 4×1 header slot. The
+   line is a bounded flex child so useFitText can shrink it to fit and, past
+   its floor, clamp it to whole lines. */
+.hdr {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--hdr-ink);
 }
-.cell-sports {
-  grid-column: 4 / 5;
-  grid-row: 1 / 2;
+.hdr-clock {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+}
+.hdr-time {
+  font-size: 148px;
+  font-weight: 500;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.hdr-date {
+  padding-bottom: 2px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.hdr-date span {
+  display: block;
+  font-weight: 400;
+  color: var(--glass-ink-mute);
+}
+.hdr-line {
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 26px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  font-size: 46px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  /* grey so the clock stays the loudest thing, but solid and dark enough
+     (4.3–5:1 on the background) to read from across the kitchen */
+  color: #5b6170;
 }
 
-/* ============ ROW 2 — affirmation / cook tonight ============ */
-.cell-affirmation {
-  grid-column: 1 / 3;
-  grid-row: 2 / 3;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-}
-.affirmation {
-  flex: 1;
-  min-width: 0;
-}
-.affirmation .note {
-  /* Bounded flex box so useFitText can measure content (scrollHeight) against
-     the available space (clientHeight) and pick the largest fitting size. The
-     inline font-size the hook sets wins; var(--t-body) is only the pre-JS
-     fallback. overflow:hidden is the last-ditch guard, not the intended path —
-     the hook keeps the text inside the box down to its legible floor. */
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  font-family: var(--ff-body);
-  font-weight: 300;
-  font-size: var(--t-body);
-  line-height: 1.38;
-  color: var(--ink);
-}
-/* The "Posted <date>" footer is intentionally dropped (Option B): in this
-   single-row affirmation cell its ~2 lines of height go to the note instead, so a
-   ~180-char line auto-fits. The posted date now rides inline on the eyebrow
-   ("Affirmation · Nov 3"). (No .affirmation-date rule; the component no longer
-   renders a footer.) */
 .tile-empty {
   margin: 0;
   font-family: var(--ff-body);
@@ -463,12 +618,6 @@ body {
   font-size: var(--t-card);
   line-height: 1.38;
   color: var(--muted);
-}
-
-.cell-cook {
-  grid-column: 3 / 5;
-  grid-row: 2 / 3;
-  padding: 0; /* the pinch strip / widget placeholder owns its interior padding */
 }
 
 /* ---- empty widget-slot placeholder (shown when no recipe is configured) ----
@@ -524,87 +673,345 @@ body {
   color: var(--muted);
 }
 
-/* ============ COOK TONIGHT (recipe strip inside its row-2 card) ============
-   The component renders a .pinch-tile; here it fills its .cell-cook card as a
-   row — square photo on the left, title block on the right. When no recipe is
-   configured it renders the .widget-ph invite above instead (never a blank
-   cell). */
-.pinch-tile {
+/* ============ RECIPE TILE (photo-first) ============
+   The photo fills the tile; when it's on, the name and the prep/cook times sit
+   over it on a dark scrim. No buttons — the whole tile is the tap target. The
+   "when" pill is a flat translucent fill, not glass. */
+.rc {
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  align-items: stretch;
-  gap: var(--pad);
-}
-/* When the recipe is tappable the tile is an <a>: strip the anchor's default
-   underline/color so it looks identical to the read-only section, and show a
-   pointer affordance. A top-level tap navigates to Pinch's cooking mode. */
-a.pinch-tile--tappable {
+  border-radius: inherit;
+  color: #fff;
   text-decoration: none;
-  color: inherit;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.pinch-photo--tile,
-.pinch-photo--placeholder {
-  flex: 0 0 auto;
-  /* square keyed off the card height so there's a single knob */
-  aspect-ratio: 1;
+.rc-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.pinch-photo--placeholder {
-  background: var(--hair);
+.rc-photo--none {
+  background: var(--photo-bg);
 }
-.pinch-tile__body {
+.rc-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(12, 10, 8, 0.78) 0%,
+    rgba(12, 10, 8, 0.5) 45%,
+    rgba(12, 10, 8, 0) 80%
+  );
+}
+.rc-body {
+  position: absolute;
+  left: 30px;
+  top: 24px;
+  bottom: 22px;
+  right: 38%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
   min-width: 0;
-  padding: var(--pad) var(--pad) var(--pad) 0;
-  /* Top-align so the "Cook Tonight" eyebrow sits at the top of the tile, in line
-     with the other tiles' eyebrows (Weather/Sports/Affirmation) — the body's top
-     padding is --pad, matching the .card padding the siblings' heads sit under. */
-  justify-content: flex-start;
 }
-.pinch-tile__eyebrow {
-  font-family: var(--ff-mono);
-  font-weight: 500;
-  font-size: var(--t-eyebrow);
-  letter-spacing: 0.16em;
+.rc-when {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--clay-ink);
-  margin: 0;
+  white-space: nowrap;
 }
-.pinch-tile__title {
-  font-family: var(--ff-display);
-  font-weight: 400;
-  font-size: 42px;
-  line-height: 1.1;
+.rc-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.06;
   letter-spacing: -0.02em;
-  color: var(--ink);
-  margin: 0;
-}
-.pinch-tile__title > span {
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.25);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
-/* ============ CALENDAR REGION (month grid + up-next rail) ============ */
-.cal-region {
-  grid-column: 1 / 5;
-  grid-row: 3 / 7;
+.rc-times {
+  margin-top: auto;
   display: flex;
-  gap: var(--gap);
+  gap: 32px;
+}
+.rc-time {
+  display: flex;
+  flex-direction: column;
+}
+.rc-time-n {
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.rc-time-n small {
+  margin-left: 4px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.rc-time-l {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+@container slot (min-height: 400px) {
+  .rc-scrim {
+    background:
+      linear-gradient(90deg, rgba(12, 10, 8, 0.7) 0%, rgba(12, 10, 8, 0.35) 45%, transparent 75%),
+      linear-gradient(180deg, transparent 45%, rgba(12, 10, 8, 0.55) 100%);
+  }
+  .rc-body {
+    left: 56px;
+    top: 48px;
+    bottom: 48px;
+    right: 42%;
+    gap: 18px;
+  }
+  .rc-when {
+    padding: 8px 16px;
+    font-size: 18px;
+  }
+  .rc-title {
+    font-size: 62px;
+    -webkit-line-clamp: 3;
+  }
+  .rc-times {
+    gap: 56px;
+  }
+  .rc-time-n {
+    font-size: 96px;
+  }
+  .rc-time-n small {
+    font-size: 26px;
+  }
+  .rc-time-l {
+    font-size: 16px;
+  }
+}
+
+/* ============ HOME CALENDAR (month + up next) ============
+   Its own card rather than glass: a whiter, see-through fill with no blur, with
+   its own inks and one colour per kind of event. */
+.cm {
+  --cm-ink: #1c1a24;
+  --cm-ink2: #5d5a68;
+  --cm-ink3: #9a96a6;
+  --cm-line: rgba(28, 26, 36, 0.08);
+  --cm-accent: #c8553d;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  padding: 34px 34px 0;
+  border-radius: 36px;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.8), rgba(250, 247, 252, 0.66));
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 18px 40px rgba(60, 40, 90, 0.08),
+    0 2px 6px rgba(60, 40, 90, 0.05);
+  color: var(--cm-ink);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  line-height: normal;
+}
+.ev-trash {
+  --ev: #8b93a3;
+}
+.ev-recycle {
+  --ev: #4c9a68;
+}
+.ev-bday {
+  --ev: #e08a3c;
+}
+.ev-dinner {
+  --ev: #d6603f;
+}
+.ev-club {
+  --ev: #9a6fd1;
+}
+.ev-groom {
+  --ev: #2f9fb3;
+}
+.ev-travel {
+  --ev: #4a7fd6;
+}
+.ev-holiday {
+  --ev: #c49a22;
+}
+.cm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.cm-month {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cm-accent);
+}
+.cm-year {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--cm-ink3);
+}
+.cm-grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
+  margin-top: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--cm-line);
+}
+.cm-dow {
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cm-ink3);
+}
+/* each day is a tap target: the whole 58px cell, not just the number */
+.cm-day {
+  height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 0 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.cm-n {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 21px;
+  font-weight: 500;
+}
+.cm-day.is-past .cm-n {
+  color: var(--cm-ink3);
+  font-weight: 400;
+}
+.cm-day.is-weekend:not(.is-past) .cm-n {
+  color: var(--cm-ink2);
+}
+.cm-day.is-today .cm-n {
+  background: var(--cm-accent);
+  color: #fff;
+  font-weight: 700;
+}
+/* the picked day stays inside its circle so it never runs into the dots */
+.cm-day.is-picked .cm-n {
+  background: var(--cm-ink);
+  color: #fff;
+}
+.cm-day.is-today.is-picked .cm-n {
+  background: var(--cm-accent);
+  box-shadow: inset 0 0 0 3px var(--cm-ink);
+}
+.cm-dots {
+  display: flex;
+  gap: 4px;
+  height: 8px;
+  margin-top: 2px;
+}
+.cm-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ev);
+}
+.cm-picked {
+  flex: none;
+  margin-top: 18px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cm-ink2);
+}
+/* the list scrolls by finger; the bar is hidden on a touch wall */
+.cm-list {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 0 30px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.cm-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.cm-ev {
+  flex: none;
+  display: grid;
+  grid-template-columns: 5px 1fr;
+  column-gap: 16px;
+}
+.cm-bar {
+  border-radius: 3px;
+  background: var(--ev);
+}
+.cm-text {
   min-width: 0;
 }
+.cm-title {
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-meta {
+  margin-top: 3px;
+  font-size: 18px;
+  color: var(--cm-ink2);
+}
+.cm-empty {
+  font-size: 18px;
+  color: var(--cm-ink2);
+}
+.cm .error-state {
+  margin: 0;
+}
+
+/* ============ CALENDAR REGION (month grid + up-next rail) ============ */
 
 /* ---- month grid (left, ~1.85×) ---- */
 .month {
@@ -612,19 +1019,6 @@ a.pinch-tile--tappable {
   padding: 24px 24px 18px;
   min-width: 0;
 }
-
-/* Portrait walls (kanshi transform 90/270 → a 1280-wide viewport): side by side,
-   the month grid gets ~100px day columns and titles break mid-word. Stack the
-   month over the rail at full width instead. */
-@media (orientation: portrait) {
-  .cal-region {
-    flex-direction: column;
-  }
-  .month {
-    flex: 1.6;
-  }
-}
-
 .m-head {
   display: flex;
   align-items: center;

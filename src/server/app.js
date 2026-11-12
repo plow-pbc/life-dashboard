@@ -288,7 +288,12 @@ export function createApp({
   if (sportsStore) {
     app.get('/api/sports', (c) => {
       const games = sportsStore.get();
-      return games ? c.json({ games }) : c.text('sports unavailable', 503);
+      // `uncovered` is the static list of followed teams whose league ESPN
+      // doesn't serve (e.g. PWHL); the tile shows an honest note for them
+      // instead of dropping them silently. Null games = not primed yet (503).
+      return games
+        ? c.json({ games, uncovered: sportsStore.uncovered ?? [] })
+        : c.text('sports unavailable', 503);
     });
 
     // Locally-cached team logos. Each game's team side points here (a `self`

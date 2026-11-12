@@ -35,24 +35,26 @@ function NavIcon({ tab }: { tab: Tab }) {
   }
 }
 
-// The persistent bottom nav. Each tab is a finger-sized <a href="#tab"> so a tap
+// The persistent bottom nav: a glass pill below the Home grid. Each tab is a finger-sized <a href="#tab"> so a tap
 // changes the hash natively (hashchange → the shell swaps the pane); the active
 // tab is highlighted. Anchors (not buttons) keep it robust even if JS is slow:
 // the hash still changes on tap.
 export function BottomNav({ tab }: { tab: Tab }) {
   return (
     <nav className="bottom-nav" aria-label="Dashboard sections">
-      {TABS.map((t) => (
-        <a
-          key={t}
-          className={'nav-item' + (t === tab ? ' is-active' : '')}
-          href={hashForTab(t)}
-          aria-current={t === tab ? 'page' : undefined}
-        >
-          <NavIcon tab={t} />
-          <span className="nav-label">{TAB_LABELS[t]}</span>
-        </a>
-      ))}
+      <div className="nav-pill glass">
+        {TABS.map((t) => (
+          <a
+            key={t}
+            className={'nav-item' + (t === tab ? ' is-active' : '')}
+            href={hashForTab(t)}
+            aria-current={t === tab ? 'page' : undefined}
+          >
+            <NavIcon tab={t} />
+            <span className="nav-label">{TAB_LABELS[t]}</span>
+          </a>
+        ))}
+      </div>
     </nav>
   );
 }

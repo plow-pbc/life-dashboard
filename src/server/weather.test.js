@@ -4,6 +4,7 @@ import {
   parseCurrentTemp,
   parseDayRange,
   buildWeather,
+  parseHourly,
   fetchWeather,
   createWeatherFetcher,
 } from './weather.js';
@@ -18,8 +19,24 @@ const pointsJson = {
 const hourlyJson = {
   properties: {
     periods: [
-      { number: 1, temperature: 71.6, temperatureUnit: 'F', shortForecast: 'Clear' },
-      { number: 2, temperature: 70, temperatureUnit: 'F', shortForecast: 'Clear' },
+      {
+        number: 1,
+        startTime: '2026-11-11T08:00:00-08:00',
+        isDaytime: true,
+        temperature: 71.6,
+        temperatureUnit: 'F',
+        shortForecast: 'Clear',
+        windSpeed: '5 mph',
+        probabilityOfPrecipitation: { unitCode: 'wmoUnit:percent', value: 10 },
+      },
+      {
+        number: 2,
+        startTime: '2026-11-11T09:00:00-08:00',
+        isDaytime: true,
+        temperature: 70,
+        temperatureUnit: 'F',
+        shortForecast: 'Clear',
+      },
     ],
   },
 };
@@ -85,14 +102,56 @@ describe('parseDayRange', () => {
 
 describe('buildWeather', () => {
   it('combines the three payloads into a snapshot', () => {
-    expect(buildWeather({ pointsJson, hourlyJson, forecastJson, location: 'Mountain View' })).toEqual({
+    const sun = {
+      sunrise: new Date('2026-11-11T14:44:00Z'),
+      sunset: new Date('2026-11-12T01:01:00Z'),
+    };
+    expect(
+      buildWeather({ pointsJson, hourlyJson, forecastJson, location: 'Mountain View', sun }),
+    ).toEqual({
       temp: 72,
       unit: 'F',
       hi: 74,
       lo: 58,
       condition: 'Sunny',
       location: 'Mountain View',
+      wind: '5 mph',
+      hourly: [
+        {
+          time: '2026-11-11T08:00:00-08:00',
+          temp: 72,
+          condition: 'Clear',
+          isDaytime: true,
+          precip: 10,
+        },
+        {
+          time: '2026-11-11T09:00:00-08:00',
+          temp: 70,
+          condition: 'Clear',
+          isDaytime: true,
+          precip: null,
+        },
+      ],
+      sunrise: '2026-11-11T14:44:00.000Z',
+      sunset: '2026-11-12T01:01:00.000Z',
     });
+  });
+});
+
+describe('parseHourly', () => {
+  it('skips periods with no start or temperature, and caps the count', () => {
+    const periods = [
+      { startTime: 'a', temperature: 50 },
+      { temperature: 51 },
+      { startTime: 'c' },
+      { startTime: 'd', temperature: 53 },
+      { startTime: 'e', temperature: 54 },
+    ];
+    expect(parseHourly({ properties: { periods } }, 2).map((h) => h.time)).toEqual(['a', 'd']);
+  });
+
+  it('is empty when the payload has no periods', () => {
+    expect(parseHourly({})).toEqual([]);
   });
 });
 
@@ -107,16 +166,22 @@ describe('fetchWeather', () => {
       { lat: 37.386, lon: -122.083, location: 'Mountain View' },
       fetchImpl,
     );
-    expect(result).toMatchObject({ temp: 72, hi: 74, lo: 58, condition: 'Sunny', location: 'Mountain View' });
+    expect(result).toMatchObject({
+      temp: 72,
+      hi: 74,
+      lo: 58,
+      condition: 'Sunny',
+      location: 'Mountain View',
+    });
     // First call is the rounded /points lookup.
     expect(fetchImpl.mock.calls[0][0]).toContain('/points/37.386,-122.083');
   });
 
   it('throws when an upstream call is not ok', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 500 }));
-    await expect(
-      fetchWeather({ lat: 1, lon: 2, location: 'x' }, fetchImpl),
-    ).rejects.toThrow(/HTTP 500/);
+    await expect(fetchWeather({ lat: 1, lon: 2, location: 'x' }, fetchImpl)).rejects.toThrow(
+      /HTTP 500/,
+    );
   });
 });
 

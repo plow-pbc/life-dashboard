@@ -23,9 +23,9 @@ const CAL_LOAD_LIMIT = 500;
 // the Home tile's NEXT_N rail. Still a cap; the rail scrolls.
 const CAL_PANE_NEXT_N = 50;
 
-// The affirmation is the only remaining posted card (card 2). Weather and sports
-// are now self-fetching components, no longer generic posted cards.
-const AFFIRMATION_CARD = '2';
+// The agent's line in the Home header is the only remaining posted card (card 2).
+// Weather and sports are self-fetching components, not posted cards.
+const AGENT_LINE_CARD = '2';
 
 type State = { kind: 'loading' } | CalendarResult;
 
@@ -35,7 +35,7 @@ type State = { kind: 'loading' } | CalendarResult;
 // are cheap to swap. See nav.ts for the hash-routing rationale.
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
-  const [affirmation, setAffirmation] = useState<MessageType | null>(null);
+  const [agentLine, setAgentLine] = useState<MessageType | null>(null);
   // The URL hash is the single routing source of truth: it carries the active tab.
   // A bare URL (the Pi's hourly recycle) → Home; a reload keeps the hash → stays put.
   const [hash, setHash] = useState<string>(() => location.hash);
@@ -46,6 +46,25 @@ export function App() {
   const [mealsRecipe, setMealsRecipe] = useState<string | null>(null);
   const clearMealsRecipe = useCallback(() => setMealsRecipe(null), []);
 
+  // Scrolling anywhere (the calendar, the sports pager) also flattens glass,
+  // until it settles: a blur over a moving scroller drops the Pi to ~25fps.
+  // A class on <html>, not React state, so a scroll never re-renders the app.
+  useEffect(() => {
+    const root = document.documentElement;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = () => {
+      root.classList.add('is-scrolling');
+      clearTimeout(settle);
+      settle = setTimeout(() => root.classList.remove('is-scrolling'), 150);
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      clearTimeout(settle);
+      root.classList.remove('is-scrolling');
+    };
+  }, []);
+
   useEffect(() => {
     const onHashChange = () => setHash(location.hash);
     window.addEventListener('hashchange', onHashChange);
@@ -53,6 +72,17 @@ export function App() {
   }, []);
 
   const tab: Tab = tabFromHash(hash);
+
+  // Tab changes fade the new pane in. While it fades the shell is marked
+  // animating, which swaps every glass surface for a flat fill: the Pi's GPU
+  // can't blur behind something that changes every frame. The first render
+  // (a reload, the hourly restart) never animates.
+  const [shownTab, setShownTab] = useState<Tab>(tab);
+  const [fading, setFading] = useState(false);
+  if (tab !== shownTab) {
+    setShownTab(tab);
+    setFading(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -64,12 +94,12 @@ export function App() {
 
     (async () => {
       try {
-        const res = await fetch(`api/message?card=${AFFIRMATION_CARD}`);
+        const res = await fetch(`api/message?card=${AGENT_LINE_CARD}`);
         if (!res.ok) return;
         const body = (await res.json()) as { message: MessageType | null };
-        if (!cancelled) setAffirmation(body.message);
+        if (!cancelled) setAgentLine(body.message);
       } catch {
-        // Non-critical: the card shows its quiet invitation; the rest loads.
+        // Non-critical: the header shows just the clock; the rest loads.
       }
     })();
 
@@ -90,27 +120,33 @@ export function App() {
   const isError = state.kind === 'error';
 
   return (
-    <div className="shell">
+    <div className={fading ? 'shell is-animating' : 'shell'}>
       <main className="pane">
-        {tab === 'home' && (
-          <HomePane
-            affirmation={affirmation}
-            month={month}
-            upNext={upNext}
-            staleGeneratedAt={staleGeneratedAt}
-            isError={isError}
-            onOpenRecipe={setMealsRecipe}
-          />
-        )}
-        {tab === 'calendar' && (
-          <CalendarPane
-            month={month}
-            upNext={upNextLong}
-            staleGeneratedAt={staleGeneratedAt}
-            isError={isError}
-          />
-        )}
-        {tab === 'meals' && <MealsPane openRecipe={mealsRecipe} onConsumed={clearMealsRecipe} />}
+        <div
+          key={tab}
+          className={fading ? 'pane-view is-entering' : 'pane-view'}
+          onAnimationEnd={() => setFading(false)}
+        >
+          {tab === 'home' && (
+            <HomePane
+              agentLine={agentLine}
+              events={events}
+              upNext={upNext}
+              staleGeneratedAt={staleGeneratedAt}
+              isError={isError}
+              onOpenRecipe={setMealsRecipe}
+            />
+          )}
+          {tab === 'calendar' && (
+            <CalendarPane
+              month={month}
+              upNext={upNextLong}
+              staleGeneratedAt={staleGeneratedAt}
+              isError={isError}
+            />
+          )}
+          {tab === 'meals' && <MealsPane openRecipe={mealsRecipe} onConsumed={clearMealsRecipe} />}
+        </div>
       </main>
       <BottomNav tab={tab} />
     </div>

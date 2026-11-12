@@ -65,15 +65,25 @@ describe('GET /api/sports', () => {
       new Request('http://localhost/api/sports'),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ games });
+    expect(await res.json()).toEqual({ games, uncovered: [] });
   });
 
-  it('serves an empty list as { games: [] }', async () => {
+  it('serves an empty list as { games: [], uncovered: [] }', async () => {
     const res = await appWith({ sportsStore: storeOf([]) }).fetch(
       new Request('http://localhost/api/sports'),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ games: [] });
+    expect(await res.json()).toEqual({ games: [], uncovered: [] });
+  });
+
+  it('passes the store\'s uncovered list through to the client', async () => {
+    const uncovered = [{ abbr: 'GSV', league: 'PWHL' }];
+    const sportsStore = { get: () => [], uncovered };
+    const res = await appWith({ sportsStore }).fetch(
+      new Request('http://localhost/api/sports'),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ games: [], uncovered });
   });
 
   it('503s before the first snapshot lands', async () => {

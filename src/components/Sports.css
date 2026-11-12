@@ -273,3 +273,45 @@
 .sp-pagedot.is-active {
   background: var(--seaglass-ink, #5f6e60);
 }
+
+/* ---- hero (4×2): same layout, scaled up for the matchup on game night ---- */
+@container slot (min-height: 400px) {
+  .sp-eyebrow {
+    font-size: 20px;
+  }
+  .sp-game {
+    padding: 18px 0;
+  }
+  .sp-row {
+    gap: 24px;
+  }
+  .sp-side {
+    width: 128px;
+  }
+  .sp-crest {
+    width: 108px;
+    height: 108px;
+  }
+  .sp-logo {
+    width: 80px;
+    height: 80px;
+  }
+  .sp-crest-abbr {
+    font-size: 28px;
+  }
+  .sp-scoreline {
+    font-size: 64px;
+    gap: 14px;
+  }
+  .sp-time {
+    font-size: 52px;
+  }
+  .sp-day,
+  .sp-state {
+    font-size: 18px;
+  }
+  .sp-dot {
+    width: 12px;
+    height: 12px;
+  }
+}

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 // Read-only view of the recipe snapshot. The out-of-process Paprika sync (see
 // SEED.md) owns every file here and rewrites the library atomically; this
@@ -17,6 +17,17 @@ function readJson(path) {
   }
 }
 
+const PLAN_SLOTS = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+
+function isPlanEntry(e) {
+  return (
+    typeof e?.date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
+    PLAN_SLOTS.has(e.slot) &&
+    typeof e.recipeId === 'string'
+  );
+}
+
 export class JsonStore {
   constructor(filePath) {
     this.filePath = filePath;
@@ -27,10 +38,29 @@ export class JsonStore {
     // Preserve the top-level `tonightRecipeId` (Pinch's meal-plan pick for tonight)
     // alongside recipes — a non-string (absent/null) means "nothing planned".
     // Per-recipe fields (incl. lastOpenedAt) pass through untouched in `recipes`.
+    // `plan` (the planned meals for the coming week) passes through only when the
+    // sync wrote one, keeping well-formed entries; absent → the tile's old behaviour.
     return {
       recipes: Array.isArray(lib.recipes) ? lib.recipes : [],
       tonightRecipeId: typeof lib.tonightRecipeId === 'string' ? lib.tonightRecipeId : null,
+      ...(Array.isArray(lib.plan) ? { plan: lib.plan.filter(isPlanEntry) } : {}),
     };
+  }
+
+  // When the library snapshot was last written, as an ISO-8601 string, or null
+  // if there is no file yet. collection.json carries no generated-at field, so
+  // the file's own mtime IS the freshness signal: the hourly wall-sync rewrites
+  // it (temp+rename) only on a SUCCESSFUL pull, so a stale mtime means the pull
+  // has been failing (e.g. an expired recipe token) and the library is frozen.
+  // The tile uses this to show a dated "menu from …" note instead of passing
+  // frozen data off as tonight's plan. ENOENT → null (ordinary pre-sync state).
+  mtimeISO() {
+    try {
+      return statSync(this.filePath).mtime.toISOString();
+    } catch (err) {
+      if (err.code === 'ENOENT') return null;
+      throw err;
+    }
   }
 }
 
