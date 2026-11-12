@@ -108,7 +108,7 @@ function WxIcon({ kind }: { kind: WxKind }) {
   );
 }
 
-export function Weather() {
+export function Weather({ at }: { at: Date }) {
   const [weather, setWeather] = useState<Weather | null>(null);
 
   useEffect(() => {
@@ -130,7 +130,7 @@ export function Weather() {
 
   if (!weather) return null;
 
-  const hours = upcomingHours(weather.hourly ?? [], new Date(), HOURS);
+  const hours = upcomingHours(weather.hourly ?? [], at, HOURS);
   const now = hours[0];
   const rain = now?.precip;
 

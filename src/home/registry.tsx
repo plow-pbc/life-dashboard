@@ -81,9 +81,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   },
   weather: {
     surface: 'glass',
-    render: () => (
+    render: ({ now }) => (
       <section className="card c-apricot">
-        <Weather />
+        <Weather at={now} />
       </section>
     ),
   },
