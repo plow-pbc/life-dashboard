@@ -143,4 +143,5 @@ is a hypothesis.
 | Pushed SHA never goes live | `ssh <pi-user>@<pi> 'cat ~/ld-releases/state/last-result.json'` — build failure retries next tick; a rollback pins the SHA until a new push |
 | `/api/version` 401 off-box | request lacks the `DASHBOARD_TOKEN` bearer |
 | `journalctl --user -u …` shows nothing | Pis often keep no per-user journals — use `journalctl _SYSTEMD_USER_UNIT=life-dashboard-viewer.service` |
+| Taps work but nothing scrolls by touch | labwc is turning touch into a mouse: the `<touch …>` line in `~/.config/labwc/rc.xml` must say `mouseEmulation="no"`; fix it, then `kill -HUP $(pgrep -x labwc)` |
 | Wall dark, services active | check the kiosk unit's Chromium and `http://localhost:5174/healthz` on the Pi |
