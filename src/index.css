@@ -835,6 +835,30 @@ body {
   font-feature-settings: 'tnum' 1;
   line-height: normal;
 }
+.ev-trash {
+  --ev: #8b93a3;
+}
+.ev-recycle {
+  --ev: #4c9a68;
+}
+.ev-bday {
+  --ev: #e08a3c;
+}
+.ev-dinner {
+  --ev: #d6603f;
+}
+.ev-club {
+  --ev: #9a6fd1;
+}
+.ev-groom {
+  --ev: #2f9fb3;
+}
+.ev-travel {
+  --ev: #4a7fd6;
+}
+.ev-holiday {
+  --ev: #c49a22;
+}
 .cm-head {
   display: flex;
   align-items: baseline;
@@ -924,7 +948,7 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ev);
 }
 .cm-picked {
   flex: none;
@@ -961,7 +985,7 @@ body {
 }
 .cm-bar {
   border-radius: 3px;
-  background: var(--accent);
+  background: var(--ev);
 }
 .cm-text {
   min-width: 0;
