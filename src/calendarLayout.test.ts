@@ -6,6 +6,7 @@ import {
   categoryFor,
   categoryOf,
   setCategoryRules,
+  setFamilyKeywords,
   CATEGORY_CLASS,
   dayDiff,
   isMultiDay,
@@ -147,6 +148,14 @@ describe('categoryOf (deterministic keyword heuristic)', () => {
     expect(categoryFor(timed('u', 'Fall break trip', [2026, 9, 16, 9, 0], [2026, 9, 16, 10, 0]))).toBe(
       CATEGORY_CLASS.travel,
     );
+  });
+
+  it('adds household family keywords as whole words', () => {
+    expect(cat('Smith reunion')).toBe('reminder');
+    setFamilyKeywords(['Smith']);
+    expect(cat('Smith reunion')).toBe('family');
+    expect(cat('Call with the Smiths')).toBe('work'); // whole word only
+    expect(cat('Standup')).toBe('work'); // built-in rules kept
   });
 
   it('is config-overridable and resets to the built-in defaults', () => {

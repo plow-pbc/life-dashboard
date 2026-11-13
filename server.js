@@ -177,6 +177,7 @@ const app = createApp({
   // CSP). Read-only + rotatable, so it is a re-pasteable `.env` value read at
   // runtime; createApp URL-encodes it and serves it via loopback-only /api/config.
   pinchEmbedToken: process.env.PINCH_EMBED_TOKEN,
+  familyKeywords: process.env.FAMILY_KEYWORDS,
 });
 
 // Banner images live outside the bundle so they can be swapped without a

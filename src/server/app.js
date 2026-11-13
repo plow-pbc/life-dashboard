@@ -104,6 +104,9 @@ export function createApp({
   // Exposed (URL-encoded, see below) via GET /api/config, which is loopback-only, so the token
   // never leaves the box. Blank/absent → null → the Meals tab shows its placeholder.
   pinchEmbedToken = null,
+  // Comma list (process.env.FAMILY_KEYWORDS) of extra words that mark an event Family.
+  // Household-specific (often a surname), so it lives in the Pi `.env`, never the repo.
+  familyKeywords = null,
 }) {
   const pinchOrigin = normalizePinchBackendUrl(pinchBackendUrl);
   // Percent-encode once, here at the boundary, so /api/config hands the client a value it can
@@ -229,6 +232,7 @@ export function createApp({
       familyName: familyName ?? null,
       pinchBackendUrl: pinchOrigin ?? null,
       pinchEmbedToken: pinchEmbedTokenEncoded,
+      familyKeywords: (familyKeywords ?? '').split(',').map((k) => k.trim()).filter(Boolean),
     });
   });
 

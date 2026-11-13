@@ -131,6 +131,16 @@ export function setCategoryRules(rules: CategoryRule[] | null | undefined): void
   categoryRules = rules && rules.length ? rules : DEFAULT_CATEGORY_RULES;
 }
 
+/** Add household words (e.g. a surname) to the built-in Family keywords. */
+export function setFamilyKeywords(keywords: string[]): void {
+  const extra = keywords.map(normalizeTitle).filter(Boolean);
+  setCategoryRules(
+    DEFAULT_CATEGORY_RULES.map((rule) =>
+      rule.category === 'family' ? { ...rule, keywords: [...rule.keywords, ...extra] } : rule,
+    ),
+  );
+}
+
 /**
  * Normalize a title for matching: lowercase, drop [bracketed] tags like [test]/
  * [hold], fold smart quotes, strip emoji/punctuation (keeping ':' and '-' so
