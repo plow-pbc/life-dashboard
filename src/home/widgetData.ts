@@ -1,4 +1,4 @@
-import { ACCENT_BY_CAT, categoryFor, lastVisibleDay, sameDay, startOfDay } from '../calendarLayout';
+import { lastVisibleDay, sameDay, startOfDay } from '../calendarLayout';
 import type { Event } from '../types';
 
 // ---- recipe times ----------------------------------------------------------
@@ -52,12 +52,44 @@ export type MonthDay = {
   isPast: boolean;
   isToday: boolean;
   isWeekend: boolean;
-  /** The accent class of each of the day's events (the Calendar tab's
-   *  categories), one per event, at most MAX_DOTS. */
-  dots: string[];
+  /** The kinds of the day's events, one per event, at most MAX_DOTS. */
+  dots: EventKind[];
 };
 
 const MAX_DOTS = 3;
+
+// Each event gets its own colour by what it is, so the dots on a day tell its
+// events apart. Checked in order: a birthday dinner is a dinner, and a pickup
+// with recycling is recycling.
+export type EventKind =
+  | 'recycle'
+  | 'trash'
+  | 'dinner'
+  | 'bday'
+  | 'club'
+  | 'groom'
+  | 'travel'
+  | 'holiday';
+const KIND_RULES: [EventKind, RegExp][] = [
+  ['recycle', /\u267B|recycl/i],
+  ['trash', /\u{1F5D1}|trash|garbage/iu],
+  ['dinner', /dinner|supper/i],
+  ['bday', /birthday|anniversary|turns \d|\u{1F389}/iu],
+  ['club', /club/i],
+  ['groom', /groom/i],
+  ['travel', /\u2708|flight|airport|trip/iu],
+  ['holiday', /thanksgiving|christmas|hanukkah|easter|new year|holiday/i],
+];
+const KINDS = KIND_RULES.map(([k]) => k);
+
+/** What an event is, for its colour. A title no rule knows still gets a
+ *  steady colour of its own, picked from its text. */
+export function eventKind(title: string): EventKind {
+  for (const [kind, re] of KIND_RULES) if (re.test(title)) return kind;
+  let h = 0;
+  for (const ch of title) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
+  return KINDS[h % KINDS.length];
+}
 
 // Titles on the wall are words: an emoji that IS the title becomes its word,
 // any other emoji is dropped.
@@ -108,7 +140,7 @@ export function monthDays(events: Event[], now: Date): { blanks: number; days: M
         ? []
         : eventsOn(events, date)
             .slice(0, MAX_DOTS)
-            .map((e) => ACCENT_BY_CAT[categoryFor(e)]),
+            .map((e) => eventKind(e.title)),
     });
   }
   return { blanks: first.getDay(), days };
