@@ -588,7 +588,14 @@ describe('/api/config (runtime FAMILY_NAME)', () => {
       familyName: 'THE SMITHS',
       pinchBackendUrl: null,
       pinchEmbedToken: null,
+      familyKeywords: [],
     });
+  });
+
+  it('serves FAMILY_KEYWORDS as a trimmed list, dropping empties', async () => {
+    const app = appWith(vi.fn(), { familyKeywords: ' Smith, ,Jones ', getRemote: () => '127.0.0.1' });
+    const res = await app.fetch(new Request('http://localhost/api/config'));
+    expect((await res.json()).familyKeywords).toEqual(['Smith', 'Jones']);
   });
 
   it('returns {familyName: null} when unset, letting the client use its default', async () => {
@@ -598,6 +605,7 @@ describe('/api/config (runtime FAMILY_NAME)', () => {
       familyName: null,
       pinchBackendUrl: null,
       pinchEmbedToken: null,
+      familyKeywords: [],
     });
   });
 
@@ -613,11 +621,13 @@ describe('/api/config (runtime FAMILY_NAME)', () => {
       familyName: 'THE SMITHS',
       pinchBackendUrl: null,
       pinchEmbedToken: null,
+      familyKeywords: [],
     });
     expect(await after.json()).toEqual({
       familyName: 'THE JONESES',
       pinchBackendUrl: null,
       pinchEmbedToken: null,
+      familyKeywords: [],
     });
   });
 
@@ -641,6 +651,7 @@ describe('/api/config + CSP (PINCH_BACKEND_URL for the Meals tab)', () => {
       familyName: null,
       pinchBackendUrl: 'https://pinch-mt-preview.vercel.app',
       pinchEmbedToken: null,
+      familyKeywords: [],
     });
     const csp = res.headers.get('content-security-policy');
     expect(csp).toContain('frame-src https://pinch-mt-preview.vercel.app;');
