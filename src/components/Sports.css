@@ -130,6 +130,31 @@
   color: var(--faint, #9a978f);
 }
 
+/* Holds the center, plus the league over it when a game is alone. */
+.sp-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.sp-league {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--seaglass-ink, #5f6e60);
+}
+.sp-name {
+  font-family: var(--ff-mono);
+  font-weight: 500;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  color: var(--glass-ink-mute, #6b6b6b);
+}
+
 .sp-center {
   flex: 1;
   min-width: 0;
@@ -261,7 +286,6 @@
   justify-content: center;
   align-items: center;
   gap: 7px;
-  margin-top: 10px;
 }
 .sp-pagedot {
   width: 6px;
@@ -313,5 +337,63 @@
   .sp-dot {
     width: 12px;
     height: 12px;
+  }
+}
+
+/* ---- side slot (2×1): three rows must fit, one game should fill ---- */
+@container slot (max-height: 399px) {
+  /* Three games: tighter rows and smaller crests so the third isn't cut off. */
+  [data-n='3'] > .sp-game {
+    padding: 5px 0;
+  }
+  [data-n='3'] .sp-crest {
+    width: 46px;
+    height: 46px;
+  }
+  [data-n='3'] .sp-logo {
+    width: 34px;
+    height: 34px;
+  }
+  [data-n='3'] .sp-scoreline {
+    font-size: 27px;
+  }
+  [data-n='3'] .sp-time {
+    font-size: 23px;
+  }
+
+  /* One game: a single big matchup, teams named, league over the time. */
+  .sp-solo .sp-games {
+    justify-content: center;
+  }
+  .sp-solo .sp-game {
+    padding: 0;
+  }
+  .sp-solo .sp-row {
+    gap: 16px;
+  }
+  .sp-solo .sp-side {
+    width: 112px;
+    gap: 8px;
+  }
+  .sp-solo .sp-crest {
+    width: 92px;
+    height: 92px;
+  }
+  .sp-solo .sp-logo {
+    width: 68px;
+    height: 68px;
+  }
+  .sp-solo .sp-crest-abbr {
+    font-size: 24px;
+  }
+  .sp-solo .sp-time {
+    font-size: 42px;
+  }
+  .sp-solo .sp-scoreline {
+    font-size: 50px;
+  }
+  .sp-solo .sp-day,
+  .sp-solo .sp-state {
+    font-size: 15px;
   }
 }

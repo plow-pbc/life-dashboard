@@ -59,7 +59,7 @@ export type Game = {
 // `failed` via onError and swaps to the abbr INSIDE the crest. No name label
 // prints beneath the crest — logos only — so three matchup rows fit the tile
 // without vertical cutoff.
-function TeamCrest({ team }: { team: Team }) {
+function TeamCrest({ team, named = false }: { team: Team; named?: boolean }) {
   const [failed, setFailed] = useState(false);
   // Reset when the logo source changes so a later-cached logo can recover from
   // an earlier miss on the same component instance.
@@ -80,6 +80,7 @@ function TeamCrest({ team }: { team: Team }) {
           />
         )}
       </div>
+      {named && <span className="sp-name">{team.abbr}</span>}
     </div>
   );
 }
@@ -94,16 +95,22 @@ function TeamCrest({ team }: { team: Team }) {
 // weekday — instead of flanking the center with scores that squeezed a nowrap
 // clock label into an overflow painting over them (the live-overlap bug).
 // `now` is threaded in so the "is it today?" test and the render agree on one clock.
-function Center({ game, now }: { game: Game; now: Date }) {
+function Center({ game, now, solo }: { game: Game; now: Date; solo: boolean }) {
   if (game.state === 'pre') {
     const when = game.date ? new Date(game.date) : null;
     const time = when
       ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
       : game.detail;
+    const today = when !== null && when.toDateString() === now.toDateString();
+    // A lone game has room to say "Tonight" where a list leaves today unsaid.
     const day =
-      when && when.toDateString() !== now.toDateString()
+      when && !today
         ? when.toLocaleDateString([], { weekday: 'short' })
-        : null;
+        : today && solo
+          ? when.getHours() >= 17
+            ? 'Tonight'
+            : 'Today'
+          : null;
     return (
       <div className="sp-center">
         <span className="sp-time">{time}</span>
@@ -131,14 +138,18 @@ function Center({ game, now }: { game: Game; now: Date }) {
   );
 }
 
-// One matchup row: away crest · center · home crest.
-function GameRow({ game, now }: { game: Game; now: Date }) {
+// One matchup row: away crest · center · home crest. A lone game has the tile
+// to itself, so it also names the teams and the league.
+function GameRow({ game, now, solo = false }: { game: Game; now: Date; solo?: boolean }) {
   return (
     <div className={`sp-game sp-${game.state}`}>
       <div className="sp-row">
-        <TeamCrest team={game.away} />
-        <Center game={game} now={now} />
-        <TeamCrest team={game.home} />
+        <TeamCrest team={game.away} named={solo} />
+        <div className="sp-mid">
+          {solo && game.league && <span className="sp-league">{game.league}</span>}
+          <Center game={game} now={now} solo={solo} />
+        </div>
+        <TeamCrest team={game.home} named={solo} />
       </div>
     </div>
   );
@@ -166,32 +177,35 @@ export function Sports({ games }: { games: Game[] | null }) {
   };
 
   return (
-    <section className="sp" aria-label="Sports">
+    <section className={`sp${games.length === 1 ? ' sp-solo' : ''}`} aria-label="Sports">
       <div className="sp-head">
         <span className="sp-eyebrow">Sports</span>
+        {/* The page dots sit beside the eyebrow so the rows get the height. */}
+        {paged && (
+          <div className="sp-dots" aria-hidden="true">
+            {pages.map((_, i) => (
+              <span key={i} className={`sp-pagedot ${i === active ? 'is-active' : ''}`} />
+            ))}
+          </div>
+        )}
       </div>
       {games.length === 0 ? (
         <div className="sp-empty">No upcoming games</div>
       ) : !paged ? (
-        <div className="sp-games">
+        <div className="sp-games" data-n={games.length}>
           {games.map((game) => (
-            <GameRow key={game.id} game={game} now={now} />
+            <GameRow key={game.id} game={game} now={now} solo={games.length === 1} />
           ))}
         </div>
       ) : (
         <>
           <div className="sp-pager" ref={pagerRef} onScroll={onScroll}>
             {pages.map((pageGames, i) => (
-              <div className="sp-page" key={i}>
+              <div className="sp-page" key={i} data-n={pageGames.length}>
                 {pageGames.map((game) => (
                   <GameRow key={game.id} game={game} now={now} />
                 ))}
               </div>
-            ))}
-          </div>
-          <div className="sp-dots" aria-hidden="true">
-            {pages.map((_, i) => (
-              <span key={i} className={`sp-pagedot ${i === active ? 'is-active' : ''}`} />
             ))}
           </div>
         </>
