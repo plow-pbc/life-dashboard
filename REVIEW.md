@@ -13,6 +13,16 @@ from their own (often public) copy; agents post cards over the protocol in
 
 **Stage:** user-facing. Runs on household walls.
 
+Ideal customer: a household running its own wall kiosk; current household count
+unknown, Sam to fill.
+
+## #1 priority: keep code complexity down
+
+Cut feature creep and over-engineering, keep code DRY, and avoid conditionals
+wherever possible. For low-user products, prefer reusable model judgment over
+brittle regex, even at extra cost or latency. The goal is rapid iteration to
+PMF.
+
 ## Review bar
 
 Report **Critical** and **Important** findings only. Nits and style go
