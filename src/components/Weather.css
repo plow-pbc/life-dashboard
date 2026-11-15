@@ -136,17 +136,23 @@
   stroke: #4f8de0;
 }
 
-/* ---- hero (4×2) ---- */
+/* ---- hero (4×2) ----
+   Three bands top to bottom: the headline (temperature beside the condition),
+   a four-up band of facts between two rules, and the hour strip. */
 @container slot (min-height: 400px) {
   .wx {
-    padding: 14px 18px 6px;
-    gap: 24px;
+    padding: 0 18px 4px;
+    gap: 0;
   }
   .wx-now {
-    gap: 40px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 40px;
+    row-gap: 22px;
   }
   .wx-temp {
-    font-size: 200px;
+    font-size: 168px;
   }
   .wx-cond {
     font-size: 34px;
@@ -170,30 +176,53 @@
     color: var(--apricot-ink);
   }
   .wx-facts {
-    gap: 10px;
-    font-size: 24px;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    padding: 22px 0;
+    border-top: 1px solid rgba(27, 33, 48, 0.1);
+    border-bottom: 1px solid rgba(27, 33, 48, 0.1);
+    text-align: left;
+  }
+  .wx-facts > div {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding-left: 22px;
+    border-left: 1px solid rgba(27, 33, 48, 0.08);
+  }
+  .wx-facts > div:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .wx-facts dt {
+    font-size: 18px;
+  }
+  .wx-facts dd {
+    font-size: 36px;
   }
   .wx-fact-extra {
     display: flex !important;
   }
   .wx-hours {
-    padding-top: 22px;
+    padding-top: 0;
+    border-top: 0;
     grid-template-columns: repeat(8, 1fr);
   }
   .wx-hour:nth-child(n + 7) {
     display: flex;
   }
   .wx-hour {
-    gap: 10px;
+    gap: 12px;
   }
   .wx-hour-t {
-    font-size: 21px;
+    font-size: 23px;
   }
   .wx-hour .wx-icon {
-    width: 42px;
-    height: 42px;
+    width: 56px;
+    height: 56px;
   }
   .wx-hour-v {
-    font-size: 30px;
+    font-size: 40px;
   }
 }
