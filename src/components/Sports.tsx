@@ -11,14 +11,15 @@ import './Sports.css';
 // Three games fit the tile at once. When more than three are in the window the
 // rows paginate 3-per-page into a horizontal scroll-snap track: on the touch
 // kiosk a swipe pages between them for free, and a small breadcrumb of dots
-// under the games tracks the current page. At ≤3 games it's a single static
-// column — no scroller, no dots.
+// beside the "Sports" eyebrow tracks the current page. At ≤3 games it's a
+// single static column — no scroller, no dots. A lone game has the tile to
+// itself, so it also names both teams and the league.
 //
 // Center column by game state (mirrors the Apple widget):
 //   - upcoming (pre): the start time, with the weekday under it when not today.
 //   - live (in):      the away/home scores flanking a live period+clock label.
 //   - final (post):   the away/home scores flanking "Final".
-// (The server still sends a per-game `league`, but it is not displayed.)
+// The per-game `league` is shown only for a lone game.
 //
 // Self-fetching rather than fed from App, following <CookTonight/>: the
 // scoreboard is independent of the calendar and a sports failure must never
@@ -56,9 +57,9 @@ export type Game = {
 // A team's circular crest: the mirrored logo when we have one AND it loads,
 // else the abbreviation so the row never shows a hole or a broken-image glyph.
 // A load failure (cache miss during warm-up, a failed/refused download) flips
-// `failed` via onError and swaps to the abbr INSIDE the crest. No name label
-// prints beneath the crest — logos only — so three matchup rows fit the tile
-// without vertical cutoff.
+// `failed` via onError and swaps to the abbr INSIDE the crest. Only a lone game
+// (`named`) prints the abbreviation beneath the crest; in a list it's logos only
+// so three matchup rows fit the tile without vertical cutoff.
 function TeamCrest({ team, named = false }: { team: Team; named?: boolean }) {
   const [failed, setFailed] = useState(false);
   // Reset when the logo source changes so a later-cached logo can recover from
