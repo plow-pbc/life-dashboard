@@ -86,9 +86,7 @@ export function App() {
   }
 
   const reloadGate = useRef<ReloadGate | null>(null);
-  useEffect(() => {
-    reloadGate.current?.setTab(tab);
-  }, [tab]);
+  const holdReload = useCallback((held: boolean) => reloadGate.current?.setHeld(held), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,9 +107,9 @@ export function App() {
       }
     })();
 
-    // Reload for fresh data every REFRESH_MS, held while Meals is showing (see
-    // reloadGate.ts) so a reload never moves someone's place in a recipe.
-    const gate = createReloadGate(tabFromHash(location.hash), REFRESH_MS, () => location.reload());
+    // Reload for fresh data every REFRESH_MS, held while the Pinch embed is showing
+    // (see reloadGate.ts) so a reload never moves someone's place in a recipe.
+    const gate = createReloadGate(REFRESH_MS, () => location.reload());
     reloadGate.current = gate;
     return () => {
       cancelled = true;
@@ -155,7 +153,13 @@ export function App() {
               isError={isError}
             />
           )}
-          {tab === 'meals' && <MealsPane openRecipe={mealsRecipe} onConsumed={clearMealsRecipe} />}
+          {tab === 'meals' && (
+            <MealsPane
+              openRecipe={mealsRecipe}
+              onConsumed={clearMealsRecipe}
+              onEmbedShown={holdReload}
+            />
+          )}
         </div>
       </main>
       <BottomNav tab={tab} />

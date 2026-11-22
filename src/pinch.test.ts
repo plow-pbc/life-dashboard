@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  embedConfigured,
   embedSrc,
   hasDinnerTonight,
   isLocalPhotoUrl,
@@ -148,6 +149,19 @@ describe('isMenuStale', () => {
     expect(isMenuStale(null, NOW)).toBe(false);
     expect(isMenuStale(undefined, NOW)).toBe(false);
     expect(isMenuStale('not-a-date', NOW)).toBe(false);
+  });
+});
+
+describe('embedConfigured', () => {
+  it('is true only with both an origin and a token', () => {
+    expect(embedConfigured('https://pinch.example.com', 'ro%2Dtok')).toBe(true);
+    expect(embedConfigured('https://pinch.example.com', null)).toBe(false);
+    expect(embedConfigured(null, 'ro%2Dtok')).toBe(false);
+  });
+
+  it('is false after a failed config load, so the placeholder never holds the reload', () => {
+    // MealsPane sets both to null when /api/config errors or is not OK.
+    expect(embedConfigured(null, null)).toBe(false);
   });
 });
 
