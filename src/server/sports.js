@@ -187,13 +187,14 @@ function teamSide(competitor) {
 
 const ESPN = 'https://site.api.espn.com/apis/site/v2/sports';
 
-// The feeds read for one followed team, scoreboard first so its copy of a game
-// wins the dedupe. Each is [url, reshape-to-scoreboard].
+// The feeds read for one followed team. Each is [kind, url, reshape-to-scoreboard];
+// `kind` says which pool its games go into (see fetchSports).
 function teamFeeds({ sport, abbr }, league) {
-  const feeds = [[`${ESPN}/${sport}/${league}/scoreboard${LEAGUE_QUERY[league] ?? ''}`, (json) => json]];
+  const feeds = [['scoreboard', `${ESPN}/${sport}/${league}/scoreboard${LEAGUE_QUERY[league] ?? ''}`, (json) => json]];
   const label = SCHEDULE_LEAGUES[league];
   if (label) {
     feeds.push([
+      'schedule',
       `${ESPN}/${sport}/${league}/teams/${encodeURIComponent(abbr)}/schedule`,
       (json) => scheduleAsScoreboard(json, label),
     ]);
@@ -214,25 +215,27 @@ async function fetchJson(url, fetchImpl) {
 // schedule), skipping any feed that fails, and
 // return up to `limit` upcoming/live games sorted by date. `teams` is a list of
 // { abbr, sport, league }. An empty list yields [] — the tile shows
-// "No upcoming games". Duplicate games (two followed teams meeting) collapse by
-// event id. The default caps at 9 (three pages of three) so the tile's
+// "No upcoming games". Duplicate games (two followed teams meeting, or a game in
+// both a scoreboard and a schedule) collapse by event id, and a scoreboard copy
+// always beats a schedule copy whatever order the teams are listed in: the
+// scoreboard carries the live status and score. The default caps at 9 (three pages of three) so the tile's
 // 3-per-page swipe pager has room without the list growing unbounded.
 export async function fetchSports(
   teams,
   { now = new Date(), limit = 9, windowMs = WINDOW_MS, fetchImpl = fetch } = {},
 ) {
-  const seen = new Map();
+  const found = { scoreboard: new Map(), schedule: new Map() };
   for (const team of teams ?? []) {
     const { league, supported } = normalizeLeague(team.league);
     // A league ESPN has no feed for: don't spend a request that can only 400.
     if (!supported) continue;
     // Fetch the CORRECTED slug, not the one as configured, so a well-known
     // typo (e.g. ncaa) resolves to ESPN's real endpoint instead of 400-ing.
-    for (const [url, reshape] of teamFeeds(team, league)) {
+    for (const [kind, url, reshape] of teamFeeds(team, league)) {
       try {
         const json = reshape(await fetchJson(url, fetchImpl));
         for (const game of parseScoreboard(json, team.abbr, now, windowMs)) {
-          if (!seen.has(game.id)) seen.set(game.id, game);
+          if (!found[kind].has(game.id)) found[kind].set(game.id, game);
         }
       } catch (err) {
         // One bad feed is skipped, not fatal.
@@ -240,7 +243,9 @@ export async function fetchSports(
       }
     }
   }
-  return [...seen.values()]
+  // Scoreboard entries come last, so they overwrite schedule copies of a game.
+  const merged = new Map([...found.schedule, ...found.scoreboard]);
+  return [...merged.values()]
     .sort((a, b) => Date.parse(a.date ?? 0) - Date.parse(b.date ?? 0))
     .slice(0, limit);
 }

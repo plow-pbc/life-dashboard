@@ -385,6 +385,32 @@ describe('fetchSports', () => {
       expect((await fetchSports(OKST, { now: NOW, fetchImpl })).map((g) => g.id)).toEqual(['next']);
     });
 
+    it("prefers another team's scoreboard copy over a schedule copy when the first team's scoreboard fails", async () => {
+      // OKST and ASU are both followed and play each other. OKST is listed
+      // first and its scoreboard read fails; ASU's scoreboard has the live score.
+      const fetchImpl = vi.fn(async (url) => {
+        if (url.includes('/schedule')) {
+          return json({ events: [schedEvent({ id: '70', date: '2026-10-15T23:00Z', away: 'OKST', home: 'ASU', state: 'pre' })] });
+        }
+        if (fetchImpl.mock.calls.filter(([u]) => u.includes('/scoreboard')).length === 1) {
+          return { ok: false, status: 503 };
+        }
+        return json(scoreboard(
+          [event({ id: '70', date: '2026-10-15T23:00Z', away: { abbr: 'OKST', score: '21' }, home: { abbr: 'ASU', score: '17' }, state: 'in', shortDetail: 'Q3 4:12' })],
+          [{ abbreviation: 'NCAAF' }],
+        ));
+      });
+      const games = await fetchSports(
+        [
+          { abbr: 'OKST', sport: 'football', league: 'ncaa' },
+          { abbr: 'ASU', sport: 'football', league: 'ncaa' },
+        ],
+        { now: NOW, fetchImpl },
+      );
+      expect(games).toHaveLength(1);
+      expect(games[0]).toMatchObject({ id: '70', state: 'in', detail: 'Q3 4:12', away: { score: 21 }, home: { score: 17 } });
+    });
+
     it('keeps the scoreboard games when the schedule feed fails', async () => {
       const fetchImpl = vi.fn(async (url) =>
         url.includes('/schedule')
