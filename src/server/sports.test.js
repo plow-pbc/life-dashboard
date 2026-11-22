@@ -9,6 +9,7 @@ import {
   cacheLogos,
   logoKey,
   normalizeLeague,
+  scheduleAsScoreboard,
 } from './sports.js';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -299,6 +300,137 @@ describe('fetchSports', () => {
     expect(urls[0]).toContain('/football/college-football/');
     expect(urls[0]).not.toContain('/ncaa/');
     expect(games.map((g) => g.id)).toEqual(['g']);
+  });
+
+  it('asks ESPN for every FBS game, not only the ranked ones, for college football', async () => {
+    const fetchImpl = vi.fn(async () => json(scoreboard([])));
+    await fetchSports([{ abbr: 'OKST', sport: 'football', league: 'ncaa' }], { now: NOW, fetchImpl });
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80',
+    );
+  });
+
+  it('leaves other leagues\' scoreboard request unchanged', async () => {
+    const fetchImpl = vi.fn(async () => json(scoreboard([])));
+    await fetchSports([{ abbr: 'SF', sport: 'football', league: 'nfl' }], { now: NOW, fetchImpl });
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard',
+    );
+  });
+
+  describe('college football team schedule', () => {
+    // An ESPN team-schedule event: status lives on the competition, the score
+    // is { displayValue }, and the logo sits in team.logos[].
+    function schedEvent({ id, date, away, home, state = 'pre', score }) {
+      const c = (abbr, homeAway) => ({
+        homeAway,
+        team: { abbreviation: abbr, logos: [{ href: `https://a.espncdn.com/ncaa/${abbr}.png` }] },
+        ...(score ? { score: { value: Number(score), displayValue: score } } : {}),
+      });
+      return {
+        id,
+        date,
+        competitions: [
+          { status: { type: { state, shortDetail: 'Sat 4:15 PM' } }, competitors: [c(home, 'home'), c(away, 'away')] },
+        ],
+      };
+    }
+    const feedsFor = (scoreboardEvents, scheduleEvents) =>
+      vi.fn(async (url) =>
+        url.includes('/schedule')
+          ? json({ events: scheduleEvents })
+          : json(scoreboard(scoreboardEvents, [{ abbreviation: 'NCAAF' }])),
+      );
+    const OKST = [{ abbr: 'OKST', sport: 'football', league: 'ncaa' }];
+
+    it("reads the team's schedule after the scoreboard", async () => {
+      const fetchImpl = feedsFor([], []);
+      await fetchSports(OKST, { now: NOW, fetchImpl });
+      expect(fetchImpl.mock.calls.map((c) => c[0])).toEqual([
+        'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80',
+        'https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/OKST/schedule',
+      ]);
+    });
+
+    it('adds later games from the schedule and keeps one copy of a game in both feeds', async () => {
+      const tonight = event({ id: '70', date: '2026-10-15T23:00Z', away: { abbr: 'OKST', score: '7' }, home: { abbr: 'ASU', score: '3' } });
+      const fetchImpl = feedsFor(
+        [tonight],
+        [
+          schedEvent({ id: '70', date: '2026-10-15T23:00Z', away: 'OKST', home: 'ASU', state: 'in', score: '0' }),
+          schedEvent({ id: '77', date: '2026-10-22T23:00Z', away: 'KU', home: 'OKST' }),
+        ],
+      );
+      const games = await fetchSports(OKST, { now: NOW, fetchImpl });
+      expect(games.map((g) => g.id)).toEqual(['70', '77']);
+      // The scoreboard's copy of the shared game wins.
+      expect(games[0].away.score).toBe(7);
+      expect(games[1]).toMatchObject({
+        league: 'NCAAF',
+        state: 'pre',
+        away: { abbr: 'KU', score: null, logoUrl: 'https://a.espncdn.com/ncaa/KU.png' },
+        home: { abbr: 'OKST' },
+      });
+    });
+
+    it('drops schedule finals and games outside the window', async () => {
+      const fetchImpl = feedsFor(
+        [],
+        [
+          schedEvent({ id: 'old', date: '2026-10-11T23:00Z', away: 'TTU', home: 'OKST', state: 'post', score: '27' }),
+          schedEvent({ id: 'far', date: '2026-11-30T23:00Z', away: 'OKST', home: 'BYU' }),
+          schedEvent({ id: 'next', date: '2026-10-18T23:00Z', away: 'OKST', home: 'ASU' }),
+        ],
+      );
+      expect((await fetchSports(OKST, { now: NOW, fetchImpl })).map((g) => g.id)).toEqual(['next']);
+    });
+
+    it("prefers another team's scoreboard copy over a schedule copy when the first team's scoreboard fails", async () => {
+      // OKST and ASU are both followed and play each other. OKST is listed
+      // first and its scoreboard read fails; ASU's scoreboard has the live score.
+      const fetchImpl = vi.fn(async (url) => {
+        if (url.includes('/schedule')) {
+          return json({ events: [schedEvent({ id: '70', date: '2026-10-15T23:00Z', away: 'OKST', home: 'ASU', state: 'pre' })] });
+        }
+        if (fetchImpl.mock.calls.filter(([u]) => u.includes('/scoreboard')).length === 1) {
+          return { ok: false, status: 503 };
+        }
+        return json(scoreboard(
+          [event({ id: '70', date: '2026-10-15T23:00Z', away: { abbr: 'OKST', score: '21' }, home: { abbr: 'ASU', score: '17' }, state: 'in', shortDetail: 'Q3 4:12' })],
+          [{ abbreviation: 'NCAAF' }],
+        ));
+      });
+      const games = await fetchSports(
+        [
+          { abbr: 'OKST', sport: 'football', league: 'ncaa' },
+          { abbr: 'ASU', sport: 'football', league: 'ncaa' },
+        ],
+        { now: NOW, fetchImpl },
+      );
+      expect(games).toHaveLength(1);
+      expect(games[0]).toMatchObject({ id: '70', state: 'in', detail: 'Q3 4:12', away: { score: 21 }, home: { score: 17 } });
+    });
+
+    it('keeps the scoreboard games when the schedule feed fails', async () => {
+      const fetchImpl = vi.fn(async (url) =>
+        url.includes('/schedule')
+          ? { ok: false, status: 500 }
+          : json(scoreboard([event({ id: 's', away: { abbr: 'OKST', score: '0' }, home: { abbr: 'ASU', score: '0' } })])),
+      );
+      expect((await fetchSports(OKST, { now: NOW, fetchImpl })).map((g) => g.id)).toEqual(['s']);
+    });
+
+    it('still caps the merged list', async () => {
+      const weekly = Array.from({ length: 12 }, (_, i) =>
+        schedEvent({ id: `w${i}`, date: `2026-10-${String(16 + i % 12).padStart(2, '0')}T20:00Z`, away: 'OKST', home: `T${i}` }),
+      );
+      expect(await fetchSports(OKST, { now: NOW, fetchImpl: feedsFor([], weekly) })).toHaveLength(9);
+    });
+
+    it('reshapes junk schedule payloads to no events', () => {
+      expect(scheduleAsScoreboard(null, 'NCAAF')).toEqual({ events: [], leagues: [{ abbreviation: 'NCAAF' }] });
+      expect(parseScoreboard(scheduleAsScoreboard({ events: [{}, { competitions: [{}] }] }, 'NCAAF'), 'OKST', NOW)).toEqual([]);
+    });
   });
 
   it('does not spend a request on an ESPN-unsupported league', async () => {
