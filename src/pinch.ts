@@ -54,6 +54,15 @@ export function isLocalPhotoUrl(url: string | null | undefined): url is string {
   return typeof url === 'string' && LOCAL_PHOTO.test(url);
 }
 
+// Whether the Meals pane can show the Pinch embed: it needs both the origin and
+// the read-only token (an origin with no token would only render Pinch's login
+// gate). A failed or missing config load has neither, so the pane shows its
+// placeholder instead, and the viewer's periodic reload is not held (see
+// reloadGate.ts), so the next reload retries the config.
+export function embedConfigured(origin: string | null, token: string | null): boolean {
+  return Boolean(origin && token);
+}
+
 // The Pinch embed iframe src. The BASE library URL, or — when `recipe` is given — a
 // one-time recipe deep-link (Pinch opens that recipe's detail inside the embed session,
 // then strips the param so its own reloads stay clean). The token is already

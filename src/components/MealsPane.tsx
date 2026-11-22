@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { embedSrc } from '../pinch';
+import { embedConfigured, embedSrc } from '../pinch';
 
 // The Meals pane: the owner's CONFIGURED Pinch recipe app, embedded in an iframe
 // filling the pane above the nav. The base URL is not hardcoded — it comes from the
@@ -25,17 +25,24 @@ import { embedSrc } from '../pinch';
 // allow="autoplay": lets the embed sound a timer chime without a user gesture (paired
 // with the kiosk --autoplay-policy=no-user-gesture-required flag).
 //
-// Unconfigured — missing EITHER the origin or the token — → this pane shows a short
-// placeholder instead (an origin with no token would only ever render the login gate).
+// Unconfigured — missing EITHER the origin or the token, including a failed config
+// load — → this pane shows a short placeholder instead (an origin with no token would
+// only ever render the login gate).
+//
+// onEmbedShown reports whether the Pinch iframe is on screen, so the viewer holds its
+// periodic reload only then (see reloadGate.ts). The placeholder and the blank
+// loading state never hold it, so a failed config load is retried on the next reload.
 
 type Config = { loaded: boolean; origin: string | null; token: string | null };
 
 export function MealsPane({
   openRecipe,
   onConsumed,
+  onEmbedShown,
 }: {
   openRecipe: string | null;
   onConsumed: () => void;
+  onEmbedShown: (shown: boolean) => void;
 }) {
   const [cfg, setCfg] = useState<Config>({ loaded: false, origin: null, token: null });
   // Freeze the requested recipe at mount: it drives the one-shot deep-link only, so a
@@ -74,6 +81,12 @@ export function MealsPane({
       cancelled = true;
     };
   }, []);
+
+  const showsEmbed = cfg.loaded && embedConfigured(cfg.origin, cfg.token);
+  useEffect(() => {
+    onEmbedShown(showsEmbed);
+    return () => onEmbedShown(false);
+  }, [showsEmbed, onEmbedShown]);
 
   // Stay blank until we know (avoids flashing the placeholder before the iframe).
   if (!cfg.loaded) return <div className="meals-pane" />;
