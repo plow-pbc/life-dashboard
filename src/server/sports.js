@@ -1,8 +1,11 @@
 // Server-side sports fetcher backed by ESPN's public scoreboard API
 // (site.api.espn.com — no API key). For each followed team we hit its league
 // scoreboard and keep the games that team is in, inside a ~14-day window.
+// College football also reads the team's own schedule, because the scoreboard
+// only covers ESPN's current week.
 //
 //   GET site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard[?groups=80 for college football]
+//   GET site.api.espn.com/apis/site/v2/sports/{sport}/{league}/teams/{abbr}/schedule (college football)
 //
 // The parse is split from the fetch so it can be unit-tested against captured
 // JSON with no network (see sports.test.js). createSportsFetcher() wraps it in
@@ -43,6 +46,14 @@ const LEAGUE_SLUG_FIXES = {
 // `groups=80` asks for every FBS game that week instead.
 const LEAGUE_QUERY = {
   'college-football': '?groups=80',
+};
+
+// Leagues whose per-team schedule is read as well as the scoreboard. The
+// scoreboard only covers ESPN's current week, so a followed team's later games
+// inside the window would otherwise never show. The value is the league label
+// the tile shows, since the schedule payload carries none.
+const SCHEDULE_LEAGUES = {
+  'college-football': 'NCAAF',
 };
 
 // Leagues ESPN publishes NO scoreboard feed for under any known slug. A team in
@@ -134,6 +145,30 @@ export function parseScoreboard(json, abbr, now, windowMs = WINDOW_MS) {
   return games;
 }
 
+// Reshape an ESPN team-schedule payload into the scoreboard shape
+// parseScoreboard reads: schedule competitors carry the score as
+// `{ displayValue }` and the logo in `team.logos[]` (the default one first).
+// Finals are dropped: a result already reaches the tile from the current
+// week's scoreboard, and older finals would otherwise take places from
+// upcoming games under the cap.
+export function scheduleAsScoreboard(json, label) {
+  const side = (c) => ({
+    ...c,
+    score: c?.score?.displayValue,
+    team: { ...c?.team, logo: c?.team?.logos?.[0]?.href },
+  });
+  const events = (Array.isArray(json?.events) ? json.events : [])
+    .filter((e) => e?.competitions?.[0]?.status?.type?.state !== 'post')
+    .map((e) => ({
+      ...e,
+      competitions: (e.competitions ?? []).map((comp) => ({
+        ...comp,
+        competitors: (comp?.competitors ?? []).map(side),
+      })),
+    }));
+  return { events, leagues: [{ abbreviation: label }] };
+}
+
 function teamSide(competitor) {
   const score = competitor.score;
   // ESPN's team.logo is a remote PNG URL on a.espncdn.com. The tile can't load
@@ -150,8 +185,23 @@ function teamSide(competitor) {
   };
 }
 
-async function fetchScoreboard({ sport, league }, fetchImpl) {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard${LEAGUE_QUERY[league] ?? ''}`;
+const ESPN = 'https://site.api.espn.com/apis/site/v2/sports';
+
+// The feeds read for one followed team, scoreboard first so its copy of a game
+// wins the dedupe. Each is [url, reshape-to-scoreboard].
+function teamFeeds({ sport, abbr }, league) {
+  const feeds = [[`${ESPN}/${sport}/${league}/scoreboard${LEAGUE_QUERY[league] ?? ''}`, (json) => json]];
+  const label = SCHEDULE_LEAGUES[league];
+  if (label) {
+    feeds.push([
+      `${ESPN}/${sport}/${league}/teams/${encodeURIComponent(abbr)}/schedule`,
+      (json) => scheduleAsScoreboard(json, label),
+    ]);
+  }
+  return feeds;
+}
+
+async function fetchJson(url, fetchImpl) {
   const res = await fetchImpl(url, {
     redirect: 'error',
     signal: AbortSignal.timeout(10_000),
@@ -160,7 +210,8 @@ async function fetchScoreboard({ sport, league }, fetchImpl) {
   return res.json();
 }
 
-// Fetch every followed team's scoreboard, skipping any feed that fails, and
+// Fetch every followed team's scoreboard (and, for SCHEDULE_LEAGUES, its own
+// schedule), skipping any feed that fails, and
 // return up to `limit` upcoming/live games sorted by date. `teams` is a list of
 // { abbr, sport, league }. An empty list yields [] — the tile shows
 // "No upcoming games". Duplicate games (two followed teams meeting) collapse by
@@ -175,16 +226,18 @@ export async function fetchSports(
     const { league, supported } = normalizeLeague(team.league);
     // A league ESPN has no feed for: don't spend a request that can only 400.
     if (!supported) continue;
-    try {
-      // Fetch the CORRECTED slug, not the one as configured, so a well-known
-      // typo (e.g. ncaa) resolves to ESPN's real endpoint instead of 400-ing.
-      const json = await fetchScoreboard({ sport: team.sport, league }, fetchImpl);
-      for (const game of parseScoreboard(json, team.abbr, now, windowMs)) {
-        if (!seen.has(game.id)) seen.set(game.id, game);
+    // Fetch the CORRECTED slug, not the one as configured, so a well-known
+    // typo (e.g. ncaa) resolves to ESPN's real endpoint instead of 400-ing.
+    for (const [url, reshape] of teamFeeds(team, league)) {
+      try {
+        const json = reshape(await fetchJson(url, fetchImpl));
+        for (const game of parseScoreboard(json, team.abbr, now, windowMs)) {
+          if (!seen.has(game.id)) seen.set(game.id, game);
+        }
+      } catch (err) {
+        // One bad feed is skipped, not fatal.
+        console.warn(`sports feed ${url} (${team.abbr}) failed: ${err.message}`);
       }
-    } catch (err) {
-      // One bad feed is skipped, not fatal.
-      console.warn(`sports feed ${team.sport}/${league} (${team.abbr}) failed: ${err.message}`);
     }
   }
   return [...seen.values()]
