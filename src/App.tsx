@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadCalendarEvents, type CalendarResult } from './calendar';
 import { buildMonthLayout, buildUpNext } from './calendarLayout';
 import { BottomNav } from './components/BottomNav';
@@ -6,6 +6,7 @@ import { HomePane } from './components/HomePane';
 import { CalendarPane } from './components/CalendarPane';
 import { MealsPane } from './components/MealsPane';
 import { tabFromHash, type Tab } from './nav';
+import { createReloadGate, type ReloadGate } from './reloadGate';
 import type { Message as MessageType } from './message';
 
 const NEXT_N = Number(__NEXT_N__);
@@ -84,6 +85,11 @@ export function App() {
     setFading(true);
   }
 
+  const reloadGate = useRef<ReloadGate | null>(null);
+  useEffect(() => {
+    reloadGate.current?.setTab(tab);
+  }, [tab]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -103,10 +109,14 @@ export function App() {
       }
     })();
 
-    const reloadTimer = setTimeout(() => location.reload(), REFRESH_MS);
+    // Reload for fresh data every REFRESH_MS, held while Meals is showing (see
+    // reloadGate.ts) so a reload never moves someone's place in a recipe.
+    const gate = createReloadGate(tabFromHash(location.hash), REFRESH_MS, () => location.reload());
+    reloadGate.current = gate;
     return () => {
       cancelled = true;
-      clearTimeout(reloadTimer);
+      gate.stop();
+      reloadGate.current = null;
     };
   }, []);
 
