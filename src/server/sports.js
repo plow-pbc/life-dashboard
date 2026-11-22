@@ -2,7 +2,7 @@
 // (site.api.espn.com — no API key). For each followed team we hit its league
 // scoreboard and keep the games that team is in, inside a ~14-day window.
 //
-//   GET site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard
+//   GET site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard[?groups=80 for college football]
 //
 // The parse is split from the fetch so it can be unit-tested against captured
 // JSON with no network (see sports.test.js). createSportsFetcher() wraps it in
@@ -35,6 +35,14 @@ const WINDOW_MS = 14 * 24 * 60 * 60_000;
 const LEAGUE_SLUG_FIXES = {
   ncaa: 'college-football',
   nwsl: 'usa.nwsl',
+};
+
+// Query strings some league scoreboards need. College football's default
+// scoreboard lists only games with a ranked team in them, so an unranked
+// followed team (playing another unranked team) would silently never appear;
+// `groups=80` asks for every FBS game that week instead.
+const LEAGUE_QUERY = {
+  'college-football': '?groups=80',
 };
 
 // Leagues ESPN publishes NO scoreboard feed for under any known slug. A team in
@@ -143,7 +151,7 @@ function teamSide(competitor) {
 }
 
 async function fetchScoreboard({ sport, league }, fetchImpl) {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`;
+  const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard${LEAGUE_QUERY[league] ?? ''}`;
   const res = await fetchImpl(url, {
     redirect: 'error',
     signal: AbortSignal.timeout(10_000),

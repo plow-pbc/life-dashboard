@@ -301,6 +301,22 @@ describe('fetchSports', () => {
     expect(games.map((g) => g.id)).toEqual(['g']);
   });
 
+  it('asks ESPN for every FBS game, not only the ranked ones, for college football', async () => {
+    const fetchImpl = vi.fn(async () => json(scoreboard([])));
+    await fetchSports([{ abbr: 'OKST', sport: 'football', league: 'ncaa' }], { now: NOW, fetchImpl });
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80',
+    );
+  });
+
+  it('leaves other leagues\' scoreboard request unchanged', async () => {
+    const fetchImpl = vi.fn(async () => json(scoreboard([])));
+    await fetchSports([{ abbr: 'SF', sport: 'football', league: 'nfl' }], { now: NOW, fetchImpl });
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard',
+    );
+  });
+
   it('does not spend a request on an ESPN-unsupported league', async () => {
     const fetchImpl = vi.fn(async () => json(scoreboard([event({ id: 'x' })])));
     const games = await fetchSports(
